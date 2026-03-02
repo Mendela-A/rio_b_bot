@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: rio_postgres
+    environment:
+      POSTGRES_DB: rio
+      POSTGRES_USER: rio_user
+      POSTGRES_PASSWORD: rio_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rio_user -d rio"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: rio_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@rio.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bot:
+    build: .
+    container_name: rio_bot
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  pgadmin_data:
