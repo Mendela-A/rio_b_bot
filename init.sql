@@ -11,7 +11,8 @@ CREATE TABLE services (
     price NUMERIC(10,2) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT true,
-    sort_order INT DEFAULT 0
+    sort_order INT DEFAULT 0,
+    parent_id INT REFERENCES services(id) ON DELETE CASCADE
 );
 
 CREATE TABLE info_pages (
