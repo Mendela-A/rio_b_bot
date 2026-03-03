@@ -7,7 +7,7 @@ from aiogram.enums import ParseMode
 
 from app.config import load_config
 from app.database.connection import create_pool, close_pool
-from app.handlers import start, booking, services, info, common
+from app.handlers import start, booking, cart, services, info, common
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +30,7 @@ async def main() -> None:
 
     dp.include_router(start.router)
     dp.include_router(booking.router)
+    dp.include_router(cart.router)
     dp.include_router(services.router)
     dp.include_router(info.router)
     dp.include_router(common.router)

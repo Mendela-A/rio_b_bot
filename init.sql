@@ -25,6 +25,37 @@ CREATE TABLE info_pages (
 CREATE INDEX idx_services_category ON services(category_id);
 CREATE INDEX idx_services_active ON services(is_active);
 
+-- Cart (temporary, before booking confirmation)
+CREATE TABLE cart_items (
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    service_id INT REFERENCES services(id) ON DELETE CASCADE,
+    quantity INT DEFAULT 1,
+    UNIQUE(telegram_id, service_id)
+);
+
+-- Bookings
+CREATE TABLE bookings (
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    full_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    children_count INT NOT NULL,
+    booking_date DATE NOT NULL,
+    status TEXT DEFAULT 'new',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Services snapshot in booking
+CREATE TABLE booking_items (
+    id SERIAL PRIMARY KEY,
+    booking_id INT REFERENCES bookings(id) ON DELETE CASCADE,
+    service_id INT REFERENCES services(id),
+    service_name TEXT NOT NULL,
+    price NUMERIC(10,2),
+    quantity INT DEFAULT 1
+);
+
 -- Seed: categories
 INSERT INTO categories (name, type) VALUES
     ('Додаткові послуги', 'venue'),

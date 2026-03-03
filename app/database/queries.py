@@ -49,3 +49,85 @@ async def get_info_page_by_id(pool: asyncpg.Pool, page_id: int) -> asyncpg.Recor
         "SELECT title, content FROM info_pages WHERE id = $1",
         page_id,
     )
+
+
+# --- Cart ---
+
+async def cart_add(pool: asyncpg.Pool, telegram_id: int, service_id: int) -> None:
+    await pool.execute(
+        """
+        INSERT INTO cart_items (telegram_id, service_id, quantity)
+        VALUES ($1, $2, 1)
+        ON CONFLICT (telegram_id, service_id) DO UPDATE SET quantity = cart_items.quantity + 1
+        """,
+        telegram_id,
+        service_id,
+    )
+
+
+async def cart_get(pool: asyncpg.Pool, telegram_id: int) -> list[asyncpg.Record]:
+    return await pool.fetch(
+        """
+        SELECT ci.service_id, ci.quantity, s.name, s.price
+        FROM cart_items ci
+        JOIN services s ON ci.service_id = s.id
+        WHERE ci.telegram_id = $1
+        ORDER BY ci.id
+        """,
+        telegram_id,
+    )
+
+
+async def cart_remove(pool: asyncpg.Pool, telegram_id: int, service_id: int) -> None:
+    await pool.execute(
+        "DELETE FROM cart_items WHERE telegram_id = $1 AND service_id = $2",
+        telegram_id,
+        service_id,
+    )
+
+
+async def cart_clear(pool: asyncpg.Pool, telegram_id: int) -> None:
+    await pool.execute(
+        "DELETE FROM cart_items WHERE telegram_id = $1",
+        telegram_id,
+    )
+
+
+# --- Bookings ---
+
+async def create_booking(
+    pool: asyncpg.Pool,
+    telegram_id: int,
+    full_name: str,
+    phone: str,
+    children_count: int,
+    booking_date: str,
+) -> int:
+    row = await pool.fetchrow(
+        """
+        INSERT INTO bookings (telegram_id, full_name, phone, children_count, booking_date)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        """,
+        telegram_id,
+        full_name,
+        phone,
+        children_count,
+        booking_date,
+    )
+    return row["id"]
+
+
+async def create_booking_items(
+    pool: asyncpg.Pool, booking_id: int, cart_items: list[asyncpg.Record]
+) -> None:
+    await pool.executemany(
+        """
+        INSERT INTO booking_items (booking_id, service_id, service_name, price, quantity)
+        VALUES ($1, $2, $3, $4, $5)
+        """,
+        [
+            (booking_id, item["service_id"], item["name"], item["price"], item["quantity"])
+            for item in cart_items
+        ],
+    )

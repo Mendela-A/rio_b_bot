@@ -35,9 +35,9 @@ def subcategories_kb(services: list[asyncpg.Record], category_type: str) -> Inli
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def service_detail_kb(category_type: str) -> InlineKeyboardMarkup:
+def service_detail_kb(category_type: str, service_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Додати до кошику", callback_data="cart:coming_soon")],
+        [InlineKeyboardButton(text="➕ Додати до кошику", callback_data=f"cart:add:{category_type}:{service_id}")],
         [
             InlineKeyboardButton(text="◀️ Назад", callback_data=f"services:{category_type}"),
             InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu"),

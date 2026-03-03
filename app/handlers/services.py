@@ -43,6 +43,6 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
         price_line = f"\n💰 Ціна: {service['price']:.0f} грн" if service['price'] else ""
         description = f"\n📝 {service['description']}" if service['description'] else ""
         text = f"<b>{service['name']}</b>{price_line}{description}"
-        await callback.message.edit_text(text, reply_markup=service_detail_kb(category_type))
+        await callback.message.edit_text(text, reply_markup=service_detail_kb(category_type, service_id))
 
     await callback.answer()
