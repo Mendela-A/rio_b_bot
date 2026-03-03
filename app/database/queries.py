@@ -95,6 +95,26 @@ async def cart_clear(pool: asyncpg.Pool, telegram_id: int) -> None:
 
 # --- Bookings ---
 
+async def get_user_bookings(pool: asyncpg.Pool, telegram_id: int) -> list[asyncpg.Record]:
+    return await pool.fetch(
+        """
+        SELECT b.id, b.booking_date, b.status, b.children_count,
+               COALESCE(
+                   string_agg(bi.service_name, ', ' ORDER BY bi.id),
+                   ''
+               ) AS services_summary
+        FROM bookings b
+        LEFT JOIN booking_items bi ON bi.booking_id = b.id
+        WHERE b.telegram_id = $1
+        GROUP BY b.id
+        ORDER BY b.booking_date DESC
+        LIMIT 10
+        """,
+        telegram_id,
+    )
+
+
+
 async def create_booking(
     pool: asyncpg.Pool,
     telegram_id: int,

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Інфо-сторінки — РІО</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f4f6f9; font-family: system-ui, sans-serif; }
+    .page-preview { font-size: .82rem; color: #777; white-space: pre-wrap; max-height: 60px; overflow: hidden; }
+    textarea.form-control { min-height: 140px; resize: vertical; }
+  </style>
+</head>
+<body>
+
+<div class="container-lg py-4">
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <a href="/admin" class="btn btn-sm btn-outline-secondary">← Адмін-панель</a>
+    <h4 class="mb-0">Інфо-сторінки</h4>
+    <button class="btn btn-sm btn-primary ms-auto" onclick="openCreate()">+ Додати</button>
+  </div>
+
+  {% for page in pages %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex align-items-start gap-2">
+        <div class="flex-grow-1">
+          <div class="fw-semibold mb-1">{{ page.title }}</div>
+          <div class="page-preview">{{ page.content }}</div>
+        </div>
+        <div class="text-muted small me-2" title="sort_order">{{ page.sort_order }}</div>
+        <button class="btn btn-sm btn-outline-primary"
+          onclick='openEdit({{ page.id }}, {{ page.title|tojson }}, {{ page.content|tojson }}, {{ page.sort_order }})'>✏️</button>
+        <button class="btn btn-sm btn-outline-danger"
+          onclick='askDelete({{ page.id }}, {{ page.title|tojson }})'>🗑️</button>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-muted">Сторінок ще немає.</div>
+  {% endfor %}
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="pageModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST" action="/admin/info-pages">
+        <input type="hidden" name="_action" value="save">
+        <input type="hidden" name="id" id="f-id">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal-title">Нова сторінка</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Заголовок <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="title" id="f-title" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Зміст <span class="text-danger">*</span></label>
+            <textarea class="form-control" name="content" id="f-content" required></textarea>
+          </div>
+          <div class="mb-3" style="max-width: 140px">
+            <label class="form-label fw-semibold">Порядок</label>
+            <input type="number" class="form-control" name="sort_order" id="f-sort" min="0" step="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+          <button type="submit" class="btn btn-primary">Зберегти</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<form id="del-form" method="POST" action="/admin/info-pages" style="display:none">
+  <input type="hidden" name="_action" value="delete">
+  <input type="hidden" name="id" id="del-id">
+</form>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const modal = new bootstrap.Modal(document.getElementById('pageModal'));
+
+function openCreate() {
+  document.getElementById('modal-title').textContent = 'Нова сторінка';
+  document.getElementById('f-id').value = 0;
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-content').value = '';
+  document.getElementById('f-sort').value = 0;
+  modal.show();
+  setTimeout(() => document.getElementById('f-title').focus(), 300);
+}
+
+function openEdit(id, title, content, sort) {
+  document.getElementById('modal-title').textContent = 'Редагувати сторінку';
+  document.getElementById('f-id').value = id;
+  document.getElementById('f-title').value = title;
+  document.getElementById('f-content').value = content;
+  document.getElementById('f-sort').value = sort;
+  modal.show();
+  setTimeout(() => document.getElementById('f-title').focus(), 300);
+}
+
+function askDelete(id, name) {
+  if (!confirm(`Видалити «${name}»?`)) return;
+  document.getElementById('del-id').value = id;
+  document.getElementById('del-form').submit();
+}
+</script>
+</body>
+</html>

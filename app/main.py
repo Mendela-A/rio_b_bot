@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
+from app import texts
 from app.config import load_config
 from app.database.connection import create_pool, close_pool
 from app.handlers import start, booking, cart, services, info, common
@@ -20,6 +21,7 @@ async def main() -> None:
     config = load_config()
 
     pool = await create_pool(config)
+    await texts.init(pool)
 
     bot = Bot(
         token=config.bot_token,

@@ -3,6 +3,7 @@ from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
+from app import texts
 from app.database.queries import cart_add, cart_get, cart_remove, get_services_by_type
 from app.keyboards.booking_kb import cart_kb
 from app.keyboards.services_kb import services_kb
@@ -52,7 +53,7 @@ async def cart_add_handler(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
     service_id = int(parts[3])
 
     await cart_add(pool, callback.from_user.id, service_id)
-    await callback.answer("✅ Додано до кошика!")
+    await callback.answer(texts.get("cart.added"))
 
     # Auto-return to services list
     items = await get_services_by_type(pool, category_type)
@@ -66,7 +67,7 @@ async def cart_view_handler(callback: CallbackQuery, pool: asyncpg.Pool, state: 
     in_booking = (await state.get_state()) is not None
     items = await cart_get(pool, callback.from_user.id)
     if not items:
-        await callback.message.edit_text("🛒 Кошик порожній.", reply_markup=_empty_cart_kb(in_booking))
+        await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking))
     else:
         await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking))
     await callback.answer()
@@ -80,7 +81,7 @@ async def cart_remove_handler(callback: CallbackQuery, pool: asyncpg.Pool, state
     in_booking = (await state.get_state()) is not None
     items = await cart_get(pool, callback.from_user.id)
     if not items:
-        await callback.message.edit_text("🛒 Кошик порожній.", reply_markup=_empty_cart_kb(in_booking))
+        await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking))
     else:
         await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking))
     await callback.answer("🗑️ Видалено")

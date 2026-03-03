@@ -1,88 +1,64 @@
-from typing import Any, Dict, List, Optional, Sequence, Union
+import os
 
+from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
-from starlette_admin import EnumField, IntegerField, StringField
-from starlette_admin.views import BaseModelView
+from starlette.responses import Response, RedirectResponse
+from starlette_admin.views import CustomView
 
 import db
-from views.services import AttrDict
 
-TYPE_CHOICES = [
-    ("venue", "venue — Додаткові послуги"),
-    ("offsite", "offsite — Аніматор на виїзд"),
-    ("program", "program — Програми та аніматори"),
-]
+_templates = Jinja2Templates(
+    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
+)
+
+TYPE_LABELS = {
+    "venue":   "venue — Додаткові послуги",
+    "offsite": "offsite — Аніматор на виїзд",
+    "program": "program — Програми та аніматори",
+}
 
 
-class CategoryView(BaseModelView):
-    identity = "category"
-    name = "Категорії"
-    label = "Категорії"
-    icon = "fa fa-folder"
-    pk_attr = "id"
+class CategoryView(CustomView):
+    def __init__(self) -> None:
+        super().__init__(
+            label="Категорії",
+            icon="fa fa-folder",
+            path="/categories",
+            methods=["GET", "POST"],
+            name="categories",
+        )
 
-    fields = [
-        IntegerField("id", label="ID", read_only=True, exclude_from_create=True),
-        StringField("name", label="Назва", required=True),
-        EnumField("type", label="Тип (для бота)", choices=TYPE_CHOICES, required=True),
-    ]
+    async def render(self, request: Request, templates) -> Response:  # noqa: ARG002
+        if request.method == "POST":
+            return await self._handle_post(request)
+        return await self._render_page(request)
 
-    async def count(
-        self,
-        request: Request,
-        where: Union[Dict[str, Any], str, None] = None,
-    ) -> int:
+    async def _render_page(self, request: Request) -> Response:
         async with db.pool.acquire() as conn:
-            return await conn.fetchval("SELECT COUNT(*) FROM categories")
+            rows = await conn.fetch("SELECT id, name, type FROM categories ORDER BY id")
+        categories = [dict(r) for r in rows]
+        return _templates.TemplateResponse(
+            "categories.html",
+            {"request": request, "categories": categories, "type_labels": TYPE_LABELS},
+        )
 
-    async def find_all(
-        self,
-        request: Request,
-        skip: int = 0,
-        limit: int = 100,
-        where: Union[Dict[str, Any], str, None] = None,
-        order_by: Optional[List[str]] = None,
-    ) -> Sequence[Any]:
-        async with db.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT id, name, type FROM categories ORDER BY id LIMIT $1 OFFSET $2",
-                limit,
-                skip,
-            )
-        return [AttrDict(r) for r in rows]
+    async def _handle_post(self, request: Request) -> Response:
+        form = await request.form()
+        action = form.get("_action", "save")
+        cid = int(form.get("id") or 0)
 
-    async def find_by_pk(self, request: Request, pk: Any) -> Any:
         async with db.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT id, name, type FROM categories WHERE id=$1",
-                int(pk),
-            )
-        return AttrDict(row) if row else None
+            if action == "delete":
+                await conn.execute("DELETE FROM categories WHERE id=$1", cid)
+            elif cid == 0:
+                await conn.execute(
+                    "INSERT INTO categories (name, type) VALUES ($1, $2)",
+                    form["name"].strip(), form["type"],
+                )
+            else:
+                await conn.execute(
+                    "UPDATE categories SET name=$1, type=$2 WHERE id=$3",
+                    form["name"].strip(), form["type"], cid,
+                )
 
-    async def create(self, request: Request, data: Dict) -> Any:
-        async with db.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "INSERT INTO categories (name, type) VALUES ($1, $2) RETURNING id",
-                data["name"],
-                data["type"],
-            )
-        return await self.find_by_pk(request, row["id"])
-
-    async def edit(self, request: Request, pk: Any, data: Dict) -> Any:
-        async with db.pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE categories SET name=$1, type=$2 WHERE id=$3",
-                data["name"],
-                data["type"],
-                int(pk),
-            )
-        return await self.find_by_pk(request, pk)
-
-    async def delete(self, request: Request, pks: List[Any]) -> Optional[int]:
-        ids = [int(pk) for pk in pks]
-        async with db.pool.acquire() as conn:
-            await conn.execute(
-                "DELETE FROM categories WHERE id = ANY($1::int[])",
-                ids,
-            )
-        return len(ids)
+        return RedirectResponse("/admin/categories", status_code=303)
