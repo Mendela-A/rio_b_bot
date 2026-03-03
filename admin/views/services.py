@@ -40,6 +40,23 @@ _ORDER = """
 """
 
 
+async def load_parent_choices(request: Request) -> None:
+    """Fetch top-level services and store them in request.state for the form."""
+    async with db.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, name FROM services WHERE parent_id IS NULL"
+            " ORDER BY sort_order, id"
+        )
+    request.state.parent_choices = [("", "— без батька —")] + [
+        (str(r["id"]), r["name"]) for r in rows
+    ]
+
+
+def _parent_choices_loader(request: Request):
+    """Sync loader that reads choices pre-fetched into request.state."""
+    return getattr(request.state, "parent_choices", [("", "— без батька —")])
+
+
 class AttrDict(dict):
     """Dict that also supports attribute access — required by starlette-admin."""
 
@@ -73,9 +90,11 @@ class ServiceView(BaseModelView):
         DecimalField("price", label="Ціна (грн)", required=True),
         TextAreaField("description", label="Опис", required=False),
         IntegerField("sort_order", label="Порядок сортування", required=False),
-        IntegerField(
+        EnumField(
             "parent_id",
-            label="Батьківська послуга (ID або порожньо)",
+            label="Батьківська послуга",
+            choices_loader=_parent_choices_loader,
+            coerce=lambda v: int(v) if v else None,
             required=False,
         ),
         # Read-only column: shows parent name in list/detail, hidden in forms
@@ -144,8 +163,7 @@ class ServiceView(BaseModelView):
                 _optional_int(data.get("parent_id")),
                 bool(data.get("is_active", True)),
             )
-            # Re-fetch with JOIN to get parent_name
-            return await self.find_by_pk(None, row["id"])  # type: ignore[arg-type]
+        return await self.find_by_pk(None, row["id"])  # type: ignore[arg-type]
 
     async def edit(self, request: Request, pk: Any, data: Dict) -> Any:
         async with db.pool.acquire() as conn:
@@ -185,6 +203,9 @@ def _to_attrdict(row: Any) -> AttrDict:
     # Convert Decimal price to float for DecimalField
     if d.get("price") is not None:
         d["price"] = float(d["price"])
+    # parent_id shown as string in EnumField (matches choices keys)
+    if d.get("parent_id") is not None:
+        d["parent_id"] = str(d["parent_id"])
     return d
 
 
