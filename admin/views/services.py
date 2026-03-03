@@ -13,12 +13,8 @@ from starlette_admin.views import BaseModelView
 
 import db
 
-# Static category list — matches seed data in init.sql
-CATEGORY_CHOICES = [
-    ("1", "Додаткові послуги (venue)"),
-    ("2", "Аніматор на виїзд (offsite)"),
-    ("3", "Програми та аніматори (program)"),
-]
+# Fallback choices used only if DB is unavailable
+_CATEGORY_CHOICES_FALLBACK = [("", "— завантаження... —")]
 
 # Query used in find_all and find_by_pk:
 # - LEFT JOIN brings parent name
@@ -27,9 +23,11 @@ _SELECT = """
     SELECT
         s.id, s.category_id, s.name, s.price, s.description,
         s.sort_order, s.parent_id, s.is_active,
-        p.name AS parent_name
+        p.name AS parent_name,
+        c.name AS category_name
     FROM services s
     LEFT JOIN services p ON s.parent_id = p.id
+    LEFT JOIN categories c ON s.category_id = c.id
 """
 _ORDER = """
     ORDER BY
@@ -38,6 +36,22 @@ _ORDER = """
         s.sort_order,
         s.id
 """
+
+
+async def load_category_choices(request: Request) -> None:
+    """Fetch categories from DB and store in request.state for the form."""
+    async with db.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, name, type FROM categories ORDER BY id"
+        )
+    request.state.category_choices = [
+        (str(r["id"]), f"{r['name']} ({r['type']})") for r in rows
+    ]
+
+
+def _category_choices_loader(request: Request):
+    """Sync loader that reads category choices pre-fetched into request.state."""
+    return getattr(request.state, "category_choices", _CATEGORY_CHOICES_FALLBACK)
 
 
 async def load_parent_choices(request: Request) -> None:
@@ -82,9 +96,19 @@ class ServiceView(BaseModelView):
         EnumField(
             "category_id",
             label="Категорія",
-            choices=CATEGORY_CHOICES,
+            choices_loader=_category_choices_loader,
             coerce=int,
             required=True,
+            exclude_from_list=True,
+            exclude_from_detail=True,
+        ),
+        # Read-only column: shows category name in list/detail, hidden in forms
+        StringField(
+            "category_name",
+            label="Категорія",
+            read_only=True,
+            exclude_from_create=True,
+            exclude_from_edit=True,
         ),
         StringField("name", label="Назва", required=True),
         DecimalField("price", label="Ціна (грн)", required=True),
