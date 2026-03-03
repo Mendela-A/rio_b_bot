@@ -30,5 +30,5 @@ def load_config() -> Config:
         db_name=require("DB_NAME"),
         db_user=require("DB_USER"),
         db_password=require("DB_PASSWORD"),
-        admin_chat_id=int(os.getenv("ADMIN_CHAT_ID", "0")),
+        admin_chat_id=int(os.getenv("ADMIN_CHAT_ID") or "0"),
     )
