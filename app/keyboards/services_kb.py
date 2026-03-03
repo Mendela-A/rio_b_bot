@@ -2,10 +2,14 @@ import asyncpg
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
+def _service_label(s: asyncpg.Record) -> str:
+    return f"{s['name']} — {s['price']:.0f} грн" if s['price'] else s['name']
+
+
 def services_kb(services: list[asyncpg.Record], category_type: str) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(
-            text=f"{s['name']} — {s['price']:.0f} грн",
+            text=_service_label(s),
             callback_data=f"service:{category_type}:{s['id']}",
         )]
         for s in services
@@ -19,7 +23,7 @@ def services_kb(services: list[asyncpg.Record], category_type: str) -> InlineKey
 def subcategories_kb(services: list[asyncpg.Record], category_type: str) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(
-            text=f"{s['name']} — {s['price']:.0f} грн",
+            text=_service_label(s),
             callback_data=f"service:{category_type}:{s['id']}",
         )]
         for s in services

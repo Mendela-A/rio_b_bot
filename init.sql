@@ -8,7 +8,7 @@ CREATE TABLE services (
     id SERIAL PRIMARY KEY,
     category_id INT REFERENCES categories(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    price NUMERIC(10,2) NOT NULL,
+    price NUMERIC(10,2),
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     sort_order INT DEFAULT 0,

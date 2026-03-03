@@ -111,7 +111,7 @@ class ServiceView(BaseModelView):
             exclude_from_edit=True,
         ),
         StringField("name", label="Назва", required=True),
-        DecimalField("price", label="Ціна (грн)", required=True),
+        DecimalField("price", label="Ціна (грн)", required=False),
         TextAreaField("description", label="Опис", required=False),
         IntegerField("sort_order", label="Порядок сортування", required=False),
         EnumField(
@@ -183,7 +183,7 @@ class ServiceView(BaseModelView):
                 """,
                 int(data["category_id"]),
                 data["name"],
-                float(data.get("price") or 0),
+                _optional_float(data.get("price")),
                 data.get("description") or None,
                 int(data.get("sort_order") or 0),
                 _optional_int(data.get("parent_id")),
@@ -202,7 +202,7 @@ class ServiceView(BaseModelView):
                 """,
                 int(data["category_id"]),
                 data["name"],
-                float(data.get("price") or 0),
+                _optional_float(data.get("price")),
                 data.get("description") or None,
                 int(data.get("sort_order") or 0),
                 _optional_int(data.get("parent_id")),
@@ -233,6 +233,15 @@ def _to_attrdict(row: Any) -> AttrDict:
     if d.get("parent_id") is not None:
         d["parent_id"] = str(d["parent_id"])
     return d
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if value is None or value == "" or value == 0:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _optional_int(value: Any) -> Optional[int]:
