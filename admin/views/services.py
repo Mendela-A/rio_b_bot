@@ -20,6 +20,25 @@ CATEGORY_CHOICES = [
     ("3", "Програми та аніматори (program)"),
 ]
 
+# Query used in find_all and find_by_pk:
+# - LEFT JOIN brings parent name
+# - ORDER BY groups children right after their parent
+_SELECT = """
+    SELECT
+        s.id, s.category_id, s.name, s.price, s.description,
+        s.sort_order, s.parent_id, s.is_active,
+        p.name AS parent_name
+    FROM services s
+    LEFT JOIN services p ON s.parent_id = p.id
+"""
+_ORDER = """
+    ORDER BY
+        COALESCE(s.parent_id, s.id),   -- group child under parent
+        s.parent_id NULLS FIRST,        -- parent row before children
+        s.sort_order,
+        s.id
+"""
+
 
 class AttrDict(dict):
     """Dict that also supports attribute access — required by starlette-admin."""
@@ -59,6 +78,14 @@ class ServiceView(BaseModelView):
             label="Батьківська послуга (ID або порожньо)",
             required=False,
         ),
+        # Read-only column: shows parent name in list/detail, hidden in forms
+        StringField(
+            "parent_name",
+            label="Батько",
+            read_only=True,
+            exclude_from_create=True,
+            exclude_from_edit=True,
+        ),
         BooleanField("is_active", label="Активна"),
     ]
 
@@ -83,20 +110,21 @@ class ServiceView(BaseModelView):
         where: Union[Dict[str, Any], str, None] = None,
         order_by: Optional[List[str]] = None,
     ) -> Sequence[Any]:
-        q = "SELECT * FROM services"
+        q = _SELECT
         params: list = []
         if isinstance(where, str) and where:
-            q += " WHERE name ILIKE $1"
+            q += " WHERE s.name ILIKE $1"
             params.append(f"%{where}%")
-        q += " ORDER BY sort_order, id"
+        q += _ORDER
         q += f" LIMIT {limit} OFFSET {skip}"
         async with db.pool.acquire() as conn:
             rows = await conn.fetch(q, *params)
         return [_to_attrdict(r) for r in rows]
 
     async def find_by_pk(self, request: Request, pk: Any) -> Any:
+        q = _SELECT + " WHERE s.id=$1"
         async with db.pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM services WHERE id=$1", int(pk))
+            row = await conn.fetchrow(q, int(pk))
         return _to_attrdict(row) if row else None
 
     async def create(self, request: Request, data: Dict) -> Any:
@@ -116,17 +144,17 @@ class ServiceView(BaseModelView):
                 _optional_int(data.get("parent_id")),
                 bool(data.get("is_active", True)),
             )
-        return _to_attrdict(row)
+            # Re-fetch with JOIN to get parent_name
+            return await self.find_by_pk(None, row["id"])  # type: ignore[arg-type]
 
     async def edit(self, request: Request, pk: Any, data: Dict) -> Any:
         async with db.pool.acquire() as conn:
-            row = await conn.fetchrow(
+            await conn.execute(
                 """
                 UPDATE services
                 SET category_id=$1, name=$2, price=$3, description=$4,
                     sort_order=$5, parent_id=$6, is_active=$7
                 WHERE id=$8
-                RETURNING *
                 """,
                 int(data["category_id"]),
                 data["name"],
@@ -137,7 +165,7 @@ class ServiceView(BaseModelView):
                 bool(data.get("is_active", True)),
                 int(pk),
             )
-        return _to_attrdict(row)
+        return await self.find_by_pk(None, pk)  # type: ignore[arg-type]
 
     async def delete(self, request: Request, pks: List[Any]) -> Optional[int]:
         ids = [int(pk) for pk in pks]
