@@ -96,6 +96,8 @@ class ServiceView(BaseModelView):
             choices_loader=_parent_choices_loader,
             coerce=lambda v: int(v) if v else None,
             required=False,
+            exclude_from_list=True,    # list показує parent_name
+            exclude_from_detail=True,  # detail теж показує parent_name
         ),
         # Read-only column: shows parent name in list/detail, hidden in forms
         StringField(
