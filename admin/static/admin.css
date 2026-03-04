@@ -317,7 +317,7 @@ body {
 
 .booking-card.status-new       { border-left: 4px solid var(--primary); }
 .booking-card.status-confirmed { border-left: 4px solid var(--success); }
-.booking-card.status-cancelled { border-left: 4px solid #d1d5db; opacity: .72; }
+.booking-card.status-cancelled { border-left: 4px solid #f87171; background: #fff5f5; opacity: .85; }
 
 .booking-header {
   display: flex;
