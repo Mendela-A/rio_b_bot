@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette_admin.base import BaseAdmin
+from starlette_admin.views import CustomView
 
 import db
 from auth import MyAuthProvider
@@ -29,8 +30,18 @@ SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "changeme-set-in-env")
 _templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
 
-class RioAdmin(BaseAdmin):
-    async def _render_index(self, request: Request) -> Response:
+class DashboardView(CustomView):
+    def __init__(self) -> None:
+        super().__init__(
+            label="Головна",
+            icon="fa fa-home",
+            path="/",
+            methods=["GET"],
+            name="index",
+            add_to_menu=False,
+        )
+
+    async def render(self, request: Request, templates) -> Response:  # noqa: ARG002
         async with db.pool.acquire() as conn:
             stats = {
                 "services":   await conn.fetchval("SELECT COUNT(*) FROM services"),
@@ -50,10 +61,11 @@ app.mount(
     name="static",
 )
 
-admin = RioAdmin(
+admin = BaseAdmin(
     title="РІО Адмін",
     auth_provider=MyAuthProvider(),
     middlewares=[Middleware(SessionMiddleware, secret_key=SECRET_KEY)],
+    index_view=DashboardView(),
 )
 
 admin.add_view(ServicesEditorView())
