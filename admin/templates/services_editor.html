@@ -20,7 +20,7 @@
       {% if not svc.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ svc.id }}, {{ cat.id }}, 0,
-          {{ svc.name|tojson }}, {{ (svc.price or 0)|float }}, {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }})'>✏️
+          {{ svc.name|tojson }}, {{ (svc.price or 0)|int }}, {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }})'>✏️
       </button>
       <button class="btn btn-sm btn-outline-danger"
         onclick='askDelete({{ svc.id }}, {{ svc.name|tojson }})'>🗑️
@@ -34,7 +34,7 @@
       {% if not ch.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ ch.id }}, {{ cat.id }}, {{ svc.id }},
-          {{ ch.name|tojson }}, {{ (ch.price or 0)|float }},
+          {{ ch.name|tojson }}, {{ (ch.price or 0)|int }},
           {{ (ch.description or "")|tojson }}, {{ ch.is_active|lower }})'>✏️
       </button>
       <button class="btn btn-sm btn-outline-danger"
@@ -54,7 +54,7 @@
       {% if not svc.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ svc.id }}, {{ cat.id }}, 0,
-          {{ svc.name|tojson }}, {{ (svc.price or 0)|float }},
+          {{ svc.name|tojson }}, {{ (svc.price or 0)|int }},
           {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }})'>✏️
       </button>
       <button class="btn btn-sm btn-outline-danger"
