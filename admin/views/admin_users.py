@@ -69,6 +69,26 @@ class AdminUsersView(CustomView):
                 )
                 return await self._render_page(request, error=None, success=f"Користувача «{username}» додано")
 
+            elif action == "change_own_password":
+                old_password = (form.get("old_password") or "").strip()
+                password = (form.get("password") or "").strip()
+                confirm = (form.get("confirm") or "").strip()
+                if not old_password or not password:
+                    return await self._render_page(request, error="Заповніть всі поля", success=None)
+                if password != confirm:
+                    return await self._render_page(request, error="Нові паролі не співпадають", success=None)
+                row = await conn.fetchrow(
+                    "SELECT password_hash FROM admin_users WHERE username = $1", current
+                )
+                if not row or not pwd_ctx.verify(old_password, row["password_hash"]):
+                    return await self._render_page(request, error="Невірний поточний пароль", success=None)
+                hashed = pwd_ctx.hash(password)
+                await conn.execute(
+                    "UPDATE admin_users SET password_hash = $1 WHERE username = $2",
+                    hashed, current,
+                )
+                return await self._render_page(request, error=None, success="Пароль успішно змінено")
+
             elif action == "change_password":
                 username = (form.get("username") or "").strip()
                 password = (form.get("password") or "").strip()

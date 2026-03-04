@@ -12,6 +12,31 @@
 <div class="alert alert-success">{{ success }}</div>
 {% endif %}
 
+<!-- Change own password -->
+<div class="card mb-4">
+  <div class="card-header">🔑 Мій пароль</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/admin-users" class="row g-3 align-items-end">
+      <input type="hidden" name="_action" value="change_own_password">
+      <div class="col-sm-4">
+        <label class="form-label">Поточний пароль</label>
+        <input type="password" class="form-control" name="old_password" required autocomplete="current-password">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label">Новий пароль</label>
+        <input type="password" class="form-control" name="password" required autocomplete="new-password">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label">Підтвердження</label>
+        <input type="password" class="form-control" name="confirm" required>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Змінити пароль</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Users table -->
 <div class="card mb-4">
   <div class="card-header">👥 Список користувачів</div>
