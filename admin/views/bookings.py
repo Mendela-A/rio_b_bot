@@ -39,14 +39,28 @@ class BookingsView(CustomView):
         return await self._render_page(request)
 
     async def _render_page(self, request: Request) -> Response:
+        status_filter = request.query_params.get("status", "")
+        period_filter = request.query_params.get("period", "")
+
+        bookings_where = "WHERE b.status = $1" if status_filter else ""
+        bookings_params = [status_filter] if status_filter else []
+
+        period_where = ""
+        if period_filter == "today":
+            period_where = "WHERE created_at::date = CURRENT_DATE"
+        elif period_filter == "week":
+            period_where = "WHERE created_at >= date_trunc('week', NOW())"
+
         async with db.pool.acquire() as conn:
             bookings = await conn.fetch(
-                """
+                f"""
                 SELECT b.id, b.full_name, b.phone, b.children_count,
                        b.booking_date, b.status, b.created_at
                 FROM bookings b
+                {bookings_where}
                 ORDER BY b.created_at DESC
-                """
+                """,
+                *bookings_params,
             )
             items_rows = await conn.fetch(
                 """
@@ -55,6 +69,14 @@ class BookingsView(CustomView):
                 WHERE booking_id = ANY($1::int[])
                 """,
                 [r["id"] for r in bookings],
+            )
+            inquiries = await conn.fetch(
+                f"""
+                SELECT id, full_name, phone, service_name, created_at
+                FROM inquiries
+                {period_where}
+                ORDER BY created_at DESC
+                """
             )
 
         items_by_booking: dict[int, list] = {}
@@ -71,7 +93,13 @@ class BookingsView(CustomView):
             data.append(entry)
 
         return _templates.TemplateResponse(
-            "bookings.html", {"request": request, "bookings": data}
+            "bookings.html", {
+                "request": request,
+                "bookings": data,
+                "inquiries": [dict(r) for r in inquiries],
+                "status_filter": status_filter,
+                "period_filter": period_filter,
+            }
         )
 
     async def _handle_post(self, request: Request) -> Response:

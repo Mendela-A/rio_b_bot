@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Налаштування дат — РІО{% endblock %}
+{% block page_title %}Налаштування дат бронювання{% endblock %}
+
+{% block content %}
+
+<!-- Days ahead -->
+<div class="card mb-4">
+  <div class="card-header">📆 Кількість днів для вибору дати</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/blocked-dates" class="d-flex align-items-end gap-3">
+      <input type="hidden" name="_action" value="days">
+      <div>
+        <label class="form-label">Днів вперед</label>
+        <input type="number" class="form-control" name="booking_days_ahead"
+               value="{{ days_ahead }}" min="1" max="90" style="width:120px" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Зберегти</button>
+    </form>
+  </div>
+</div>
+
+<!-- Recurring weekdays -->
+{% set days_uk = ["Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота", "Неділя"] %}
+<div class="card mb-4">
+  <div class="card-header">🔁 Повторювані вихідні (щотижня)</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/blocked-dates" class="d-flex flex-wrap gap-3 align-items-center">
+      <input type="hidden" name="_action" value="weekdays">
+      {% for i in range(7) %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="weekday"
+               value="{{ i }}" id="wd-{{ i }}"
+               {% if i in blocked_weekdays %}checked{% endif %}>
+        <label class="form-check-label" for="wd-{{ i }}">{{ days_uk[i] }}</label>
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary btn-sm ms-2">Зберегти</button>
+    </form>
+  </div>
+</div>
+
+<!-- Add form -->
+<div class="card mb-4">
+  <div class="card-header">🚫 Заблокувати дату</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/blocked-dates" class="d-flex gap-3 align-items-end flex-wrap">
+      <input type="hidden" name="_action" value="add">
+      <div>
+        <label class="form-label">Дата</label>
+        <input type="date" class="form-control" name="date" required style="width:180px">
+      </div>
+      <div class="flex-grow-1" style="min-width:200px; max-width:380px">
+        <label class="form-label">Причина <span class="text-muted fw-normal">(необов'язково)</span></label>
+        <input type="text" class="form-control" name="reason" placeholder="Наприклад: корпоратив, свято…">
+      </div>
+      <button type="submit" class="btn btn-danger">Заблокувати</button>
+    </form>
+  </div>
+</div>
+
+<!-- Upcoming blocked dates -->
+<h6 class="text-uppercase fw-semibold mb-3"
+    style="font-size:.75rem; letter-spacing:.08em; color:var(--text-muted)">
+  Майбутні заблоковані дати
+</h6>
+
+{% if not upcoming %}
+<div class="text-muted mb-4" style="font-size:.9rem">Заблокованих дат немає.</div>
+{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body p-0">
+    {% for row in upcoming %}
+    <div class="svc-row">
+      <span class="svc-name fw-semibold">
+        🚫 {{ row.date.strftime('%d.%m.%Y') }}
+        <span class="fw-normal" style="font-size:.85rem">
+          {% set wd = row.date.weekday() %}
+          ({{ ["пн","вт","ср","чт","пт","сб","нд"][wd] }})
+        </span>
+      </span>
+      <span class="svc-price" style="min-width:auto; margin-right:16px; font-size:.88rem">
+        {{ row.reason if row.reason else "—" }}
+      </span>
+      {% set ds = row.date.strftime('%d.%m.%Y') %}
+      <form method="POST" action="/admin/blocked-dates" style="margin:0">
+        <input type="hidden" name="_action" value="delete">
+        <input type="hidden" name="date" value="{{ row.date.isoformat() }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger"
+                onclick="return confirm('Розблокувати {{ ds }}?')">
+          Розблокувати
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Past blocked dates -->
+{% if past %}
+<details>
+  <summary class="text-muted" style="font-size:.85rem; cursor:pointer; margin-bottom:12px">
+    Минулі заблоковані дати ({{ past|length }})
+  </summary>
+  <div class="card mt-2">
+    <div class="card-body p-0">
+      {% for row in past %}
+      <div class="svc-row" style="opacity:.55">
+        <span class="svc-name">{{ row.date.strftime('%d.%m.%Y') }}</span>
+        <span class="svc-price" style="min-width:auto; margin-right:16px; font-size:.88rem">
+          {{ row.reason if row.reason else "—" }}
+        </span>
+        <form method="POST" action="/admin/blocked-dates" style="margin:0">
+          <input type="hidden" name="_action" value="delete">
+          <input type="hidden" name="date" value="{{ row.date.isoformat() }}">
+          <button type="submit" class="btn btn-sm btn-outline-secondary">Видалити</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</details>
+{% endif %}
+
+{% endblock %}

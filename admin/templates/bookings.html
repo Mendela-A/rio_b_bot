@@ -1,85 +1,102 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Бронювання — РІО</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body { background: #f4f6f9; font-family: system-ui, sans-serif; }
-    .booking-card { border-radius: 10px; border: 2px solid #e2e8f0; background: #fff; margin-bottom: 14px; }
-    .booking-card.status-new        { border-left: 5px solid #206bc4; }
-    .booking-card.status-confirmed  { border-left: 5px solid #0ca678; }
-    .booking-card.status-cancelled  { border-left: 5px solid #adb5bd; opacity: .7; }
-    .booking-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; flex-wrap: wrap; }
-    .booking-id { font-weight: 700; color: #206bc4; font-size: 1rem; }
-    .booking-date { font-weight: 600; font-size: .95rem; }
-    .booking-body { padding: 0 16px 14px; }
-    .info-row { font-size: .88rem; color: #444; margin-bottom: 3px; }
-    .services-list { margin-top: 8px; padding: 8px 12px; background: #f8f9fb;
-                     border-radius: 6px; font-size: .83rem; color: #555; }
-    .services-list li { margin-bottom: 2px; }
-    .badge-new        { background: #dbeafe; color: #1d4ed8; }
-    .badge-confirmed  { background: #d1fae5; color: #065f46; }
-    .badge-cancelled  { background: #f1f5f9; color: #64748b; }
-    .badge-status { font-size: .72rem; padding: 3px 9px; border-radius: 99px; font-weight: 600; }
-</style>
-</head>
-<body>
+{% extends "base.html" %}
 
-<div class="container-lg py-4">
-  <div class="d-flex align-items-center gap-3 mb-4">
-    <a href="/admin" class="btn btn-sm btn-outline-secondary">← Адмін-панель</a>
-    <h4 class="mb-0">Бронювання</h4>
-    <span class="text-muted small ms-auto">{{ bookings|length }} всього</span>
-  </div>
+{% block title %}Бронювання — РІО{% endblock %}
+{% block page_title %}Бронювання{% endblock %}
 
-  {% if not bookings %}
-  <div class="text-muted text-center py-5">Бронювань ще немає.</div>
-  {% endif %}
+{% block topbar_actions %}
+  <span class="text-muted" style="font-size:.88rem">{{ bookings|length }} бронювань · {{ inquiries|length }} заявок</span>
+{% endblock %}
 
-  {% for b in bookings %}
-  {% set sid = b.id %}
-  <div class="booking-card status-{{ b.status }}">
+{% block content %}
 
-    <div class="booking-header">
-      <span class="booking-id">#{{ b.id }}</span>
-      <span class="booking-date">📅 {{ b.booking_date.strftime('%d.%m.%Y') }}</span>
-      <span class="badge-status badge-{{ b.status }}">
-        {% if b.status == 'new' %}🔵 Нове
-        {% elif b.status == 'confirmed' %}✅ Підтверджено
-        {% else %}⛔ Скасовано
-        {% endif %}
-      </span>
-      <span class="text-muted small ms-auto">{{ b.created_at.strftime('%d.%m %H:%M') }}</span>
-    </div>
+{% macro tab(label, href, active) %}
+  <a href="{{ href }}"
+     class="filter-tab {% if active %}active{% endif %}">{{ label }}</a>
+{% endmacro %}
 
-    <div class="booking-body">
-      <div class="info-row">👤 {{ b.full_name }}</div>
-      <div class="info-row">📱 <a href="tel:{{ b.phone }}">{{ b.phone }}</a></div>
-      <div class="info-row">👶 Дітей: {{ b.children_count }}</div>
-
-      {% if b.services %}
-      <ul class="services-list list-unstyled mb-0">
-        {% for item in b.services %}
-        <li>
-          • {{ item.service_name }}
-          {% if item.price %} — {{ (item.price * item.quantity)|int }} грн{% if item.quantity > 1 %} ({{ item.quantity }}×){% endif %}{% endif %}
-        </li>
-        {% endfor %}
-        {% if b.total %}
-        <li class="mt-1 fw-semibold">💰 Разом: {{ b.total|int }} грн</li>
-        {% endif %}
-      </ul>
-      {% else %}
-      <div class="info-row text-muted" style="font-size:.82rem">Послуги не обрані</div>
-      {% endif %}
-
-    </div>
-  </div>
-  {% endfor %}
+{% set pq = ("&period=" ~ period_filter) if period_filter else "" %}
+<!-- Bookings filter -->
+<div class="filter-tabs mb-3">
+  {{ tab("Всі",             "/admin/bookings?" ~ pq,                     status_filter == "") }}
+  {{ tab("🔵 Нові",         "/admin/bookings?status=new" ~ pq,           status_filter == "new") }}
+  {{ tab("✅ Підтверджені", "/admin/bookings?status=confirmed" ~ pq,     status_filter == "confirmed") }}
+  {{ tab("⛔ Скасовані",    "/admin/bookings?status=cancelled" ~ pq,     status_filter == "cancelled") }}
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% if not bookings %}
+<div class="text-muted text-center py-5" style="font-size:.95rem">Бронювань немає.</div>
+{% endif %}
+
+{% for b in bookings %}
+<div class="booking-card status-{{ b.status }}">
+
+  <div class="booking-header">
+    <span class="booking-id">#{{ b.id }}</span>
+    <span class="booking-date">📅 {{ b.booking_date.strftime('%d.%m.%Y') }}</span>
+    <span class="badge-status badge-{{ b.status }}">
+      {% if b.status == 'new' %}🔵 Нове
+      {% elif b.status == 'confirmed' %}✅ Підтверджено
+      {% else %}⛔ Скасовано
+      {% endif %}
+    </span>
+    <span class="text-muted ms-auto" style="font-size:.78rem">{{ b.created_at.strftime('%d.%m %H:%M') }}</span>
+  </div>
+
+  <div class="booking-body">
+    <div class="info-row">👤 {{ b.full_name }}</div>
+    <div class="info-row">📱 <a href="tel:{{ b.phone }}">{{ b.phone }}</a></div>
+    <div class="info-row">👶 Дітей: {{ b.children_count }}</div>
+
+    {% if b.services %}
+    <ul class="services-list list-unstyled mb-0">
+      {% for item in b.services %}
+      <li>
+        • {{ item.service_name }}
+        {% if item.price %} — {{ (item.price * item.quantity)|int }} грн{% if item.quantity > 1 %} ({{ item.quantity }}×){% endif %}{% endif %}
+      </li>
+      {% endfor %}
+      {% if b.total %}
+      <li class="mt-1 fw-semibold">💰 Разом: {{ b.total|int }} грн</li>
+      {% endif %}
+    </ul>
+    {% else %}
+    <div class="info-row text-muted" style="font-size:.8rem">Послуги не обрані</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endfor %}
+
+<!-- Inquiries -->
+<h6 class="text-uppercase fw-semibold mt-5 mb-3"
+    style="font-size:.75rem; letter-spacing:.08em; color:var(--text-muted)">
+  ⚡ Швидкі заявки
+</h6>
+
+{% set sq = ("&status=" ~ status_filter) if status_filter else "" %}
+<div class="filter-tabs mb-3">
+  {{ tab("Всі",       "/admin/bookings?" ~ sq,                  period_filter == "") }}
+  {{ tab("Сьогодні", "/admin/bookings?period=today" ~ sq,       period_filter == "today") }}
+  {{ tab("Тиждень",  "/admin/bookings?period=week" ~ sq,        period_filter == "week") }}
+</div>
+
+{% if not inquiries %}
+<div class="text-muted text-center py-4" style="font-size:.93rem">Заявок немає.</div>
+{% endif %}
+
+{% for q in inquiries %}
+<div class="booking-card" style="border-left: 4px solid #f59e0b;">
+  <div class="booking-header">
+    <span class="booking-id" style="color:#d97706">#{{ q.id }}</span>
+    <span class="badge-status" style="background:#fef3c7; color:#92400e">⚡ Заявка</span>
+    <span class="text-muted ms-auto" style="font-size:.82rem">{{ q.created_at.strftime('%d.%m %H:%M') }}</span>
+  </div>
+  <div class="booking-body">
+    <div class="info-row">👤 {{ q.full_name }}</div>
+    <div class="info-row">📱 <a href="tel:{{ q.phone }}">{{ q.phone }}</a></div>
+    <div class="info-row">🎯 {{ q.service_name }}</div>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

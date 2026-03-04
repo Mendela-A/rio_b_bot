@@ -85,6 +85,20 @@ CREATE TABLE inquiries (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Blocked booking dates
+CREATE TABLE blocked_dates (
+    date   DATE PRIMARY KEY,
+    reason TEXT DEFAULT ''
+);
+
+-- Admin-configurable settings
+CREATE TABLE settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+INSERT INTO settings (key, value) VALUES ('booking_days_ahead', '14');
+
 -- Bot editable texts
 CREATE TABLE bot_texts (
     key TEXT PRIMARY KEY,

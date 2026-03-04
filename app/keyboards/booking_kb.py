@@ -12,12 +12,20 @@ def cancel_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def date_selection_kb() -> InlineKeyboardMarkup:
+def date_selection_kb(
+    days: int = 14,
+    blocked: set | None = None,
+    blocked_weekdays: set | None = None,
+) -> InlineKeyboardMarkup:
+    blocked = blocked or set()
+    blocked_weekdays = blocked_weekdays or set()
     today = date.today()
     buttons = []
     row = []
-    for i in range(1, 15):
+    for i in range(1, days + 1):
         d = today + timedelta(days=i)
+        if d in blocked or d.weekday() in blocked_weekdays:
+            continue
         label = f"{d.day} {MONTHS_UK[d.month - 1]}"
         row.append(InlineKeyboardButton(text=label, callback_data=f"booking:date:{d.isoformat()}"))
         if len(row) == 3:

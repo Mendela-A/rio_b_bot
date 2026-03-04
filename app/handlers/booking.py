@@ -17,7 +17,7 @@ from app import texts
 from app.config import load_config
 from app.database.queries import (
     cart_get, cart_clear, create_booking, create_booking_items, get_user_bookings,
-    get_service_by_id, create_inquiry,
+    get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
 )
 from app.keyboards.booking_kb import cancel_kb, date_selection_kb, confirm_booking_kb, cart_kb
 from app.keyboards.main_menu import main_menu_kb
@@ -161,7 +161,7 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot) -> None:
 # --- Step 3: children count ---
 
 @router.message(BookingStates.waiting_children)
-async def booking_children(message: Message, state: FSMContext, bot: Bot) -> None:
+async def booking_children(message: Message, state: FSMContext, bot: Bot, pool: asyncpg.Pool) -> None:
     text = message.text.strip() if message.text else ""
     try:
         count = int(text)
@@ -179,7 +179,10 @@ async def booking_children(message: Message, state: FSMContext, bot: Bot) -> Non
 
     await state.update_data(children_count=count)
     await state.set_state(BookingStates.waiting_date)
-    sent = await message.answer(texts.get("booking.ask_date"), reply_markup=date_selection_kb())
+    days = int(await get_setting(pool, "booking_days_ahead", "14"))
+    blocked = await get_blocked_dates(pool)
+    blocked_weekdays = await get_blocked_weekdays(pool)
+    sent = await message.answer(texts.get("booking.ask_date"), reply_markup=date_selection_kb(days, blocked, blocked_weekdays))
     await state.update_data(bot_msg_id=sent.message_id)
 
 

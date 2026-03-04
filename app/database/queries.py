@@ -51,6 +51,27 @@ async def get_info_page_by_id(pool: asyncpg.Pool, page_id: int) -> asyncpg.Recor
     )
 
 
+# --- Blocked dates ---
+
+async def get_blocked_dates(pool: asyncpg.Pool) -> set:
+    rows = await pool.fetch("SELECT date FROM blocked_dates")
+    return {r["date"] for r in rows}
+
+
+async def get_blocked_weekdays(pool: asyncpg.Pool) -> set[int]:
+    row = await pool.fetchrow("SELECT value FROM settings WHERE key = 'blocked_weekdays'")
+    if not row or not row["value"]:
+        return set()
+    return {int(x) for x in row["value"].split(",") if x.strip().isdigit()}
+
+
+# --- Settings ---
+
+async def get_setting(pool: asyncpg.Pool, key: str, default: str = "") -> str:
+    row = await pool.fetchrow("SELECT value FROM settings WHERE key = $1", key)
+    return row["value"] if row else default
+
+
 # --- Inquiries (quick booking) ---
 
 async def create_inquiry(

@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -17,6 +18,8 @@ from views.bot_texts import BotTextsView
 from views.categories import CategoryView
 from views.info_pages import InfoPageView
 from views.services_editor import ServicesEditorView
+from views.blocked_dates import BlockedDatesView
+from views.settings import SettingsView
 
 load_dotenv()
 
@@ -40,6 +43,11 @@ class RioAdmin(BaseAdmin):
 
 
 app = FastAPI(lifespan=lifespan)
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")),
+    name="static",
+)
 
 admin = RioAdmin(
     title="РІО Адмін",
@@ -52,4 +60,6 @@ admin.add_view(BookingsView())
 admin.add_view(BotTextsView())
 admin.add_view(CategoryView())
 admin.add_view(InfoPageView())
+admin.add_view(SettingsView())
+admin.add_view(BlockedDatesView())
 admin.mount_to(app)
