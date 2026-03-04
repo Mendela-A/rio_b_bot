@@ -74,6 +74,17 @@ INSERT INTO services (category_id, name, price, description, is_active, sort_ord
     (3, 'Програма "Принцеси"', 1200.00, 'Казкова програма з принцесами', true, 2),
     (3, 'Програма "Пірати"', 1100.00, 'Пригодницька програма для юних піратів', true, 3);
 
+-- Quick booking inquiries
+CREATE TABLE inquiries (
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT NOT NULL,
+    full_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    service_id INT REFERENCES services(id),
+    service_name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Bot editable texts
 CREATE TABLE bot_texts (
     key TEXT PRIMARY KEY,

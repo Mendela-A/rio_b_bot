@@ -51,6 +51,31 @@ async def get_info_page_by_id(pool: asyncpg.Pool, page_id: int) -> asyncpg.Recor
     )
 
 
+# --- Inquiries (quick booking) ---
+
+async def create_inquiry(
+    pool: asyncpg.Pool,
+    telegram_id: int,
+    full_name: str,
+    phone: str,
+    service_id: int,
+    service_name: str,
+) -> int:
+    row = await pool.fetchrow(
+        """
+        INSERT INTO inquiries (telegram_id, full_name, phone, service_id, service_name)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        """,
+        telegram_id,
+        full_name,
+        phone,
+        service_id,
+        service_name,
+    )
+    return row["id"]
+
+
 # --- Cart ---
 
 async def cart_add(pool: asyncpg.Pool, telegram_id: int, service_id: int) -> None:

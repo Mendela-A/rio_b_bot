@@ -15,7 +15,10 @@ from aiogram.types import (
 
 from app import texts
 from app.config import load_config
-from app.database.queries import cart_get, cart_clear, create_booking, create_booking_items, get_user_bookings
+from app.database.queries import (
+    cart_get, cart_clear, create_booking, create_booking_items, get_user_bookings,
+    get_service_by_id, create_inquiry,
+)
 from app.keyboards.booking_kb import cancel_kb, date_selection_kb, confirm_booking_kb, cart_kb
 from app.keyboards.main_menu import main_menu_kb
 
@@ -32,6 +35,8 @@ class BookingStates(StatesGroup):
     waiting_children = State()
     waiting_date = State()
     waiting_cancel_reason = State()
+    quick_waiting_name = State()
+    quick_waiting_phone = State()
 
 
 def _phone_kb() -> ReplyKeyboardMarkup:
@@ -283,6 +288,96 @@ async def booking_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
+# --- Quick booking ---
+
+@router.callback_query(F.data.startswith("quick:start:"))
+async def quick_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    service_id = int(callback.data.split(":")[2])
+    service = await get_service_by_id(pool, service_id)
+    service_name = service["name"] if service else ""
+    await state.set_state(BookingStates.quick_waiting_name)
+    await state.update_data(
+        quick_service_id=service_id,
+        quick_service_name=service_name,
+        bot_msg_id=callback.message.message_id,
+    )
+    await callback.message.edit_text(
+        f"⚡ <b>Швидке замовлення</b>\n🎯 {service_name}\n\nВведіть ваше ім'я та прізвище:",
+        reply_markup=cancel_kb(),
+    )
+    await callback.answer()
+
+
+@router.message(BookingStates.quick_waiting_name)
+async def quick_name(message: Message, state: FSMContext, bot: Bot) -> None:
+    name = (message.text or "").strip()
+    if len(name) < 2:
+        await message.delete()
+        err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
+        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        return
+
+    data = await state.get_data()
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    await message.delete()
+
+    await state.update_data(full_name=name)
+    await state.set_state(BookingStates.quick_waiting_phone)
+    sent = await message.answer("📱 Введіть ваш телефон:", reply_markup=_phone_kb())
+    await state.update_data(bot_msg_id=sent.message_id)
+
+
+@router.message(BookingStates.quick_waiting_phone)
+async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: asyncpg.Pool) -> None:
+    data = await state.get_data()
+
+    if message.text == "❌ Скасувати":
+        await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+        await message.delete()
+        await state.clear()
+        msg = await message.answer("Скасовано.", reply_markup=ReplyKeyboardRemove())
+        asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id))
+        await message.answer("Головне меню:", reply_markup=main_menu_kb())
+        return
+
+    if message.contact:
+        phone = message.contact.phone_number
+        if not phone.startswith("+"):
+            phone = "+" + phone
+    elif message.text:
+        phone = message.text.strip()
+        if not re.match(r'^[\d\s\+\-\(\)]{10,}$', phone):
+            await message.delete()
+            err = await message.answer(
+                "⚠️ Невірний формат. Введіть телефон або натисніть кнопку нижче:",
+                reply_markup=_phone_kb(),
+            )
+            asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+            return
+    else:
+        await message.delete()
+        return
+
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    await message.delete()
+
+    full_name = data["full_name"]
+    service_id = data["quick_service_id"]
+    service_name = data["quick_service_name"]
+
+    inquiry_id = await create_inquiry(pool, message.from_user.id, full_name, phone, service_id, service_name)
+    await state.clear()
+
+    msg = await message.answer(
+        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМи зателефонуємо вам найближчим часом.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
+    await message.answer("Головне меню:", reply_markup=main_menu_kb())
+
+    await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name)
+
+
 # --- Helpers ---
 
 def _fmt_date(iso: str) -> str:
@@ -365,6 +460,23 @@ async def _notify_admin_cancelled(bot: Bot, booking: dict, reason: str = "") -> 
         await bot.send_message(_config.admin_chat_id, text, parse_mode=None)
     except Exception as e:
         logger.error("Failed to notify admin about cancellation: %s", e)
+
+
+async def _notify_admin_inquiry(
+    bot: Bot, inquiry_id: int, full_name: str, phone: str, service_name: str
+) -> None:
+    if not _config.admin_chat_id:
+        return
+    text = (
+        f"⚡ Нова заявка #{inquiry_id}\n"
+        f"🎯 {service_name}\n"
+        f"👤 {full_name}\n"
+        f"📱 {phone}"
+    )
+    try:
+        await bot.send_message(_config.admin_chat_id, text, parse_mode=None)
+    except Exception as e:
+        logger.error("Failed to notify admin about inquiry: %s", e)
 
 
 # --- My bookings ---
