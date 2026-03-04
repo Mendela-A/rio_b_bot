@@ -61,6 +61,9 @@
         onclick='askDelete({{ svc.id }}, {{ svc.name|tojson }})'>🗑️
       </button>
     </div>
+    <div class="add-row child">
+      <button class="add-btn" onclick="openCreate({{ cat.id }}, {{ svc.id }})">+ варіант</button>
+    </div>
     {% endif %}
 
     {% endfor %}
