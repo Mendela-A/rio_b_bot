@@ -99,6 +99,14 @@ CREATE TABLE settings (
 
 INSERT INTO settings (key, value) VALUES ('booking_days_ahead', '14');
 
+-- Admin panel users
+CREATE TABLE admin_users (
+    id SERIAL PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
 -- Bot editable texts
 CREATE TABLE bot_texts (
     key TEXT PRIMARY KEY,

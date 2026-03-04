@@ -20,6 +20,7 @@ from views.info_pages import InfoPageView
 from views.services_editor import ServicesEditorView
 from views.blocked_dates import BlockedDatesView
 from views.settings import SettingsView
+from views.admin_users import AdminUsersView
 
 load_dotenv()
 
@@ -62,4 +63,5 @@ admin.add_view(CategoryView())
 admin.add_view(InfoPageView())
 admin.add_view(SettingsView())
 admin.add_view(BlockedDatesView())
+admin.add_view(AdminUsersView())
 admin.mount_to(app)

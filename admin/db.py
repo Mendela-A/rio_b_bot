@@ -23,6 +23,21 @@ async def init_pool() -> None:
     )
 
 
+async def ensure_default_admin() -> None:
+    from passlib.context import CryptContext
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    username = os.getenv("ADMIN_USER", "admin")
+    password = os.getenv("ADMIN_PASSWORD", "admin")
+    async with pool.acquire() as conn:
+        count = await conn.fetchval("SELECT COUNT(*) FROM admin_users")
+        if count == 0:
+            hashed = pwd_ctx.hash(password)
+            await conn.execute(
+                "INSERT INTO admin_users (username, password_hash) VALUES ($1, $2)",
+                username, hashed,
+            )
+
+
 async def close_pool() -> None:
     global pool
     if pool:
@@ -32,5 +47,6 @@ async def close_pool() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pool()
+    await ensure_default_admin()
     yield
     await close_pool()
