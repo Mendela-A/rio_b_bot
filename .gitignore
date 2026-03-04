@@ -1,6 +1,34 @@
+# Environment
 .env
+.env.local
+.env.prod
+
+# Python
 venv/
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Uploads (future feature)
+uploads/
+
+# Logs
+*.log
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Internal dev notes
+plan.md
+db_cheatsheet.md
