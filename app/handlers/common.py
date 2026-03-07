@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from app.keyboards.main_menu import main_menu_kb
+from app.handlers._utils import edit_or_replace
 
 router = Router()
 
@@ -12,7 +13,7 @@ WELCOME_TEXT = (
 
 @router.callback_query(F.data == "main_menu")
 async def go_main_menu(callback: CallbackQuery) -> None:
-    await callback.message.edit_text(WELCOME_TEXT, reply_markup=main_menu_kb())
+    await edit_or_replace(callback, WELCOME_TEXT, reply_markup=main_menu_kb())
     await callback.answer()
 
 

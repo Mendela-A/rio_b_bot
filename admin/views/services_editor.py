@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional
 
 from fastapi.templating import Jinja2Templates
@@ -39,9 +40,9 @@ class ServicesEditorView(CustomView):
             )
             services = await conn.fetch(
                 """
-                SELECT id, category_id, parent_id, name, price, description, is_active
+                SELECT id, category_id, parent_id, name, price, description, is_active, photo_url, sort_order
                 FROM services
-                ORDER BY parent_id NULLS FIRST, id
+                ORDER BY parent_id NULLS FIRST, sort_order NULLS LAST, id
                 """
             )
 
@@ -87,24 +88,29 @@ class ServicesEditorView(CustomView):
         price = _float_or_none(form.get("price"))
         description = form.get("description", "").strip() or None
         is_active = form.get("is_active") == "on"
+        photo_url = form.get("photo_url") or None
 
         async with db.pool.acquire() as conn:
             if sid == 0:
                 await conn.execute(
                     """
-                    INSERT INTO services (category_id, parent_id, name, price, description, is_active)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                    INSERT INTO services (category_id, parent_id, name, price, description, is_active, photo_url)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     """,
-                    category_id, parent_id, name, price, description, is_active,
+                    category_id, parent_id, name, price, description, is_active, photo_url,
                 )
             else:
+                old = await conn.fetchrow("SELECT photo_url FROM services WHERE id=$1", sid)
+                if old and old["photo_url"] and old["photo_url"] != photo_url:
+                    old_file = Path("/app") / old["photo_url"].lstrip("/")
+                    old_file.unlink(missing_ok=True)
                 await conn.execute(
                     """
                     UPDATE services
-                    SET name=$1, price=$2, description=$3, is_active=$4
-                    WHERE id=$5
+                    SET name=$1, price=$2, description=$3, is_active=$4, photo_url=$5
+                    WHERE id=$6
                     """,
-                    name, price, description, is_active, sid,
+                    name, price, description, is_active, photo_url, sid,
                 )
 
     async def _delete(self, service_id: int) -> None:

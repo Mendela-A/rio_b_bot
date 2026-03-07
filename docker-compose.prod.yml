@@ -21,6 +21,8 @@ services:
     container_name: rio_bot
     env_file:
       - .env
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,6 +35,8 @@ services:
       - .env
     ports:
       - "127.0.0.1:8080:8080"
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,3 +44,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

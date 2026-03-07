@@ -1,8 +1,11 @@
+import os
+
 import asyncpg
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, FSInputFile
 from app.database.queries import get_services_by_type, get_service_by_id, get_child_services
 from app.keyboards.services_kb import services_kb, subcategories_kb, service_detail_kb
+from app.handlers._utils import edit_or_replace
 
 router = Router()
 
@@ -21,7 +24,7 @@ async def show_services(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
 
     text = f"{label}\n\nОберіть послугу:" if services else f"{label}\n\nПослуги тимчасово недоступні."
 
-    await callback.message.edit_text(text, reply_markup=services_kb(services, category_type))
+    await edit_or_replace(callback, text, reply_markup=services_kb(services, category_type))
     await callback.answer()
 
 
@@ -35,7 +38,8 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
     children = await get_child_services(pool, service_id)
 
     if children:
-        await callback.message.edit_text(
+        await edit_or_replace(
+            callback,
             f"<b>{service['name']}</b>\n\nОберіть варіант:",
             reply_markup=subcategories_kb(children, category_type),
         )
@@ -43,6 +47,16 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
         price_line = f"\n💰 Ціна: {service['price']:.0f} грн" if service['price'] else ""
         description = f"\n📝 {service['description']}" if service['description'] else ""
         text = f"<b>{service['name']}</b>{price_line}{description}"
-        await callback.message.edit_text(text, reply_markup=service_detail_kb(category_type, service_id))
+        file_path = "/app" + service['photo_url'] if service['photo_url'] else None
+        if file_path and os.path.exists(file_path):
+            await callback.message.delete()
+            await callback.message.answer_photo(
+                FSInputFile(file_path),
+                caption=text,
+                reply_markup=service_detail_kb(category_type, service_id),
+                parse_mode="HTML",
+            )
+        else:
+            await edit_or_replace(callback, text, reply_markup=service_detail_kb(category_type, service_id))
 
     await callback.answer()

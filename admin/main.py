@@ -1,13 +1,19 @@
+import io
 import os
+import subprocess
+from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, RedirectResponse
 from starlette_admin.base import BaseAdmin
 from starlette_admin.views import CustomView
 
@@ -26,6 +32,12 @@ from views.admin_users import AdminUsersView
 load_dotenv()
 
 SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "changeme-set-in-env")
+DB_HOST = os.getenv("DB_HOST", "postgres")
+DB_USER = os.getenv("DB_USER", "")
+DB_NAME = os.getenv("DB_NAME", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+UPLOADS_DIR = Path("/app/uploads")
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 _templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
 
@@ -55,6 +67,12 @@ class DashboardView(CustomView):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+app.mount(
+    "/uploads",
+    StaticFiles(directory=str(UPLOADS_DIR)),
+    name="uploads",
+)
 app.mount(
     "/static",
     StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")),
@@ -77,3 +95,44 @@ admin.add_view(SettingsView())
 admin.add_view(BlockedDatesView())
 admin.add_view(AdminUsersView())
 admin.mount_to(app)
+
+
+@app.get("/admin/export-db")
+async def export_db(request: Request):
+    if not request.session.get("username"):
+        return RedirectResponse("/admin/login")
+    result = subprocess.run(
+        ["pg_dump", "-h", DB_HOST, "-U", DB_USER, DB_NAME],
+        env={**os.environ, "PGPASSWORD": DB_PASSWORD},
+        capture_output=True,
+    )
+    filename = f"rio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+    return Response(
+        content=result.stdout,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.post("/api/upload-photo")
+async def upload_photo(request: Request, file: UploadFile = File(...)):
+    if not request.session.get("username"):
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    from PIL import Image
+
+    contents = await file.read()
+    img = Image.open(io.BytesIO(contents))
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+
+    max_width = 1280
+    if img.width > max_width:
+        ratio = max_width / img.width
+        img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
+
+    filename = uuid4().hex + ".webp"
+    filepath = UPLOADS_DIR / filename
+    img.save(str(filepath), "WEBP", quality=85)
+
+    return JSONResponse({"url": f"/uploads/{filename}"})

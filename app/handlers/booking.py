@@ -299,15 +299,15 @@ async def quick_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.
     service = await get_service_by_id(pool, service_id)
     service_name = service["name"] if service else ""
     await state.set_state(BookingStates.quick_waiting_name)
-    await state.update_data(
-        quick_service_id=service_id,
-        quick_service_name=service_name,
-        bot_msg_id=callback.message.message_id,
-    )
-    await callback.message.edit_text(
+    await state.update_data(quick_service_id=service_id, quick_service_name=service_name)
+    from app.handlers._utils import edit_or_replace
+    msg = await edit_or_replace(
+        callback,
         f"⚡ <b>Швидке замовлення</b>\n🎯 {service_name}\n\nВведіть ваше ім'я та прізвище:",
         reply_markup=cancel_kb(),
     )
+    await state.update_data(bot_msg_id=msg.message_id)
+
     await callback.answer()
 
 

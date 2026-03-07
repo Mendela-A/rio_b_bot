@@ -15,12 +15,13 @@
     {% if svc.children %}
     <div class="svc-row {% if not svc.is_active %}inactive{% endif %}">
       <span class="parent-chevron">▼</span>
+      {% if svc.photo_url %}<img src="{{ svc.photo_url }}" style="width:24px;height:24px;object-fit:cover;border-radius:3px;margin-right:4px">{% endif %}
       <span class="svc-name">{{ svc.name }}</span>
       <span class="svc-price">—</span>
       {% if not svc.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ svc.id }}, {{ cat.id }}, 0,
-          {{ svc.name|tojson }}, {{ (svc.price or 0)|int }}, {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }})'>✏️
+          {{ svc.name|tojson }}, {{ (svc.price or 0)|int }}, {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }}, {{ (svc.photo_url or "")|tojson }})'>✏️
       </button>
       <button class="btn btn-sm btn-outline-danger"
         onclick='askDelete({{ svc.id }}, {{ svc.name|tojson }})'>🗑️
@@ -29,13 +30,14 @@
 
     {% for ch in svc.children %}
     <div class="svc-row child {% if not ch.is_active %}inactive{% endif %}">
+      {% if ch.photo_url %}<img src="{{ ch.photo_url }}" style="width:24px;height:24px;object-fit:cover;border-radius:3px;margin-right:4px">{% endif %}
       <span class="svc-name">{{ ch.name }}</span>
       <span class="svc-price">{% if ch.price %}{{ ch.price|int }} грн{% else %}—{% endif %}</span>
       {% if not ch.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ ch.id }}, {{ cat.id }}, {{ svc.id }},
           {{ ch.name|tojson }}, {{ (ch.price or 0)|int }},
-          {{ (ch.description or "")|tojson }}, {{ ch.is_active|lower }})'>✏️
+          {{ (ch.description or "")|tojson }}, {{ ch.is_active|lower }}, {{ (ch.photo_url or "")|tojson }})'>✏️
       </button>
       <button class="btn btn-sm btn-outline-danger"
         onclick='askDelete({{ ch.id }}, {{ ch.name|tojson }})'>🗑️
@@ -49,13 +51,14 @@
 
     {% else %}
     <div class="svc-row {% if not svc.is_active %}inactive{% endif %}">
+      {% if svc.photo_url %}<img src="{{ svc.photo_url }}" style="width:24px;height:24px;object-fit:cover;border-radius:3px;margin-right:4px">{% endif %}
       <span class="svc-name">{{ svc.name }}</span>
       <span class="svc-price">{% if svc.price %}{{ svc.price|int }} грн{% else %}—{% endif %}</span>
       {% if not svc.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ svc.id }}, {{ cat.id }}, 0,
           {{ svc.name|tojson }}, {{ (svc.price or 0)|int }},
-          {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }})'>✏️
+          {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }}, {{ (svc.photo_url or "")|tojson }})'>✏️
       </button>
       <button class="btn btn-sm btn-outline-danger"
         onclick='askDelete({{ svc.id }}, {{ svc.name|tojson }})'>🗑️
@@ -79,6 +82,8 @@
 {% endblock %}
 
 {% block scripts %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+
 <!-- Modal: add / edit -->
 <div class="modal fade" id="svcModal" tabindex="-1">
   <div class="modal-dialog">
@@ -88,6 +93,7 @@
         <input type="hidden" name="id"          id="f-id">
         <input type="hidden" name="category_id" id="f-cat">
         <input type="hidden" name="parent_id"   id="f-parent">
+        <input type="hidden" name="photo_url"   id="f-photo-url">
 
         <div class="modal-header">
           <h5 class="modal-title" id="modal-title">Нова послуга</h5>
@@ -112,9 +118,24 @@
             <textarea class="form-control" name="description" id="f-desc" rows="2"
                       placeholder="Коротко про послугу (необов'язково)"></textarea>
           </div>
-          <div class="form-check">
+          <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="is_active" id="f-active" value="on">
             <label class="form-check-label">Активна (показується в боті)</label>
+          </div>
+
+          <!-- Photo section -->
+          <div class="mb-3">
+            <label class="form-label">Фото (необов'язково)</label>
+            <div id="current-photo-wrap" style="display:none; margin-bottom:8px">
+              <img id="current-photo" src="" style="max-height:80px; border-radius:4px; display:block; margin-bottom:4px">
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePhoto()">Видалити фото</button>
+            </div>
+            <input type="file" id="photo-input" accept="image/*" class="form-control">
+            <div id="crop-container" style="display:none; max-height:250px; overflow:hidden; margin-top:8px">
+              <img id="crop-img" style="max-width:100%">
+            </div>
+            <button type="button" id="crop-btn" class="btn btn-sm btn-secondary mt-2" style="display:none" onclick="doCrop()">Обрізати та завантажити</button>
+            <div id="upload-status" class="small text-muted mt-1" style="display:none"></div>
           </div>
         </div>
 
@@ -132,8 +153,45 @@
   <input type="hidden" name="id" id="del-id">
 </form>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script>
 const modal = new bootstrap.Modal(document.getElementById('svcModal'));
+let cropper = null;
+
+// Restore scroll position after redirect
+const SCROLL_KEY = 'svcEditorScroll';
+const savedScroll = sessionStorage.getItem(SCROLL_KEY);
+if (savedScroll) { window.scrollTo(0, parseInt(savedScroll)); sessionStorage.removeItem(SCROLL_KEY); }
+
+document.getElementById('svc-form').addEventListener('submit', () => {
+  sessionStorage.setItem(SCROLL_KEY, window.scrollY);
+});
+document.getElementById('del-form').addEventListener('submit', () => {
+  sessionStorage.setItem(SCROLL_KEY, window.scrollY);
+});
+
+function resetPhotoUI() {
+  document.getElementById('photo-input').value = '';
+  document.getElementById('crop-container').style.display = 'none';
+  document.getElementById('crop-btn').style.display = 'none';
+  document.getElementById('upload-status').style.display = 'none';
+  if (cropper) { cropper.destroy(); cropper = null; }
+}
+
+function showCurrentPhoto(url) {
+  const wrap = document.getElementById('current-photo-wrap');
+  if (url) {
+    document.getElementById('current-photo').src = url;
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function removePhoto() {
+  document.getElementById('f-photo-url').value = '';
+  showCurrentPhoto('');
+}
 
 function openCreate(catId, parentId) {
   document.getElementById('modal-title').textContent = parentId ? 'Новий варіант' : 'Нова послуга';
@@ -144,12 +202,15 @@ function openCreate(catId, parentId) {
   document.getElementById('f-price').value = '';
   document.getElementById('f-desc').value = '';
   document.getElementById('f-active').checked = true;
+  document.getElementById('f-photo-url').value = '';
   document.getElementById('variant-hint').style.display = parentId ? 'block' : 'none';
+  showCurrentPhoto('');
+  resetPhotoUI();
   modal.show();
   setTimeout(() => document.getElementById('f-name').focus(), 300);
 }
 
-function openEdit(id, catId, parentId, name, price, desc, isActive) {
+function openEdit(id, catId, parentId, name, price, desc, isActive, photoUrl) {
   document.getElementById('modal-title').textContent = 'Редагувати';
   document.getElementById('f-id').value = id;
   document.getElementById('f-cat').value = catId;
@@ -158,7 +219,10 @@ function openEdit(id, catId, parentId, name, price, desc, isActive) {
   document.getElementById('f-price').value = price || '';
   document.getElementById('f-desc').value = desc || '';
   document.getElementById('f-active').checked = isActive;
+  document.getElementById('f-photo-url').value = photoUrl || '';
   document.getElementById('variant-hint').style.display = parentId ? 'block' : 'none';
+  showCurrentPhoto(photoUrl || '');
+  resetPhotoUI();
   modal.show();
   setTimeout(() => document.getElementById('f-name').focus(), 300);
 }
@@ -167,6 +231,58 @@ function askDelete(id, name) {
   if (!confirm(`Видалити «${name}»?\n\nЯкщо це батьківська послуга — всі варіанти теж видаляться.`)) return;
   document.getElementById('del-id').value = id;
   document.getElementById('del-form').submit();
+}
+
+document.getElementById('photo-input').addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+
+  if (cropper) { cropper.destroy(); cropper = null; }
+
+  const cropImg = document.getElementById('crop-img');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    cropImg.src = e.target.result;
+    document.getElementById('crop-container').style.display = 'block';
+    document.getElementById('crop-btn').style.display = 'inline-block';
+    cropper = new Cropper(cropImg, {
+      aspectRatio: NaN,
+      viewMode: 1,
+      autoCropArea: 1,
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
+async function doCrop() {
+  if (!cropper) return;
+
+  const statusEl = document.getElementById('upload-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Завантаження...';
+  document.getElementById('crop-btn').disabled = true;
+
+  const canvas = cropper.getCroppedCanvas({ maxWidth: 1280 });
+  canvas.toBlob(async (blob) => {
+    const fd = new FormData();
+    fd.append('file', blob, 'photo.png');
+
+    try {
+      const resp = await fetch('/api/upload-photo', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (data.url) {
+        document.getElementById('f-photo-url').value = data.url;
+        showCurrentPhoto(data.url);
+        resetPhotoUI();
+        statusEl.style.display = 'none';
+      } else {
+        statusEl.textContent = 'Помилка завантаження';
+      }
+    } catch (e) {
+      statusEl.textContent = 'Помилка: ' + e.message;
+    }
+    document.getElementById('crop-btn').disabled = false;
+  }, 'image/png');
 }
 </script>
 {% endblock %}

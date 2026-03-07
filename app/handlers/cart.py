@@ -59,7 +59,8 @@ async def cart_add_handler(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
     items = await get_services_by_type(pool, category_type)
     label = _CATEGORY_LABELS.get(category_type, "Послуги")
     text = f"{label}\n\nОберіть послугу:" if items else f"{label}\n\nПослуги тимчасово недоступні."
-    await callback.message.edit_text(text, reply_markup=services_kb(items, category_type))
+    from app.handlers._utils import edit_or_replace
+    await edit_or_replace(callback, text, reply_markup=services_kb(items, category_type))
 
 
 @router.callback_query(F.data == "cart:view")
