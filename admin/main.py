@@ -1,6 +1,7 @@
 import io
 import os
 import subprocess
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -79,6 +80,33 @@ app.mount(
     name="static",
 )
 
+@app.get("/admin/export-db")
+async def export_db(request: Request):
+    if not request.session.get("username"):
+        return RedirectResponse("/admin/login")
+
+    result = subprocess.run(
+        ["pg_dump", "-h", DB_HOST, "-U", DB_USER, DB_NAME],
+        env={**os.environ, "PGPASSWORD": DB_PASSWORD},
+        capture_output=True,
+    )
+
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"rio_{ts}.sql", result.stdout)
+        if UPLOADS_DIR.exists():
+            for photo in UPLOADS_DIR.iterdir():
+                if photo.is_file():
+                    zf.write(photo, f"uploads/{photo.name}")
+
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=rio_{ts}.zip"},
+    )
+
+
 admin = BaseAdmin(
     title="РІО Адмін",
     auth_provider=MyAuthProvider(),
@@ -95,23 +123,6 @@ admin.add_view(SettingsView())
 admin.add_view(BlockedDatesView())
 admin.add_view(AdminUsersView())
 admin.mount_to(app)
-
-
-@app.get("/admin/export-db")
-async def export_db(request: Request):
-    if not request.session.get("username"):
-        return RedirectResponse("/admin/login")
-    result = subprocess.run(
-        ["pg_dump", "-h", DB_HOST, "-U", DB_USER, DB_NAME],
-        env={**os.environ, "PGPASSWORD": DB_PASSWORD},
-        capture_output=True,
-    )
-    filename = f"rio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
-    return Response(
-        content=result.stdout,
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
 
 
 @app.post("/api/upload-photo")
