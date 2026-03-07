@@ -114,6 +114,80 @@ git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+## 9. Відновлення з резервної копії
+
+Завантажте ZIP через адмін-панель ("Експорт БД + фото"), потім:
+
+### Відновлення БД
+
+```bash
+# Розпакувати SQL з архіву
+unzip rio_YYYYMMDD_HHMMSS.zip "*.sql" -d /tmp/rio_restore/
+
+# Очистити та відновити БД
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U rio_user -d rio -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U rio_user -d rio < /tmp/rio_restore/rio_YYYYMMDD_HHMMSS.sql
+```
+
+### Відновлення фото
+
+```bash
+# Розпакувати папку uploads
+unzip rio_YYYYMMDD_HHMMSS.zip "uploads/*" -d /tmp/rio_restore/
+
+# Скопіювати у контейнер
+docker compose -f docker-compose.prod.yml cp /tmp/rio_restore/uploads/. admin:/app/uploads/
+```
+
+Після відновлення перезапустити сервіси:
+
+```bash
+docker compose -f docker-compose.prod.yml restart bot admin
+```
+
+## 10. Webhook (prod)
+
+Polling — простіше для розробки, але для VPS рекомендовано webhook: Telegram сам надсилає оновлення, менше навантаження.
+
+### Налаштування Cloudflare Tunnel
+
+Додати другий ingress у `~/.cloudflared/config.yml`:
+
+```yaml
+ingress:
+  - hostname: admin.your-domain.com
+    service: http://localhost:8080
+  - hostname: bot.your-domain.com
+    service: http://localhost:8081
+  - service: http_status:404
+```
+
+DNS: додати CNAME `bot` → `<TUNNEL_ID>.cfargotunnel.com`
+
+Перезапустити тунель:
+```bash
+systemctl restart cloudflared
+```
+
+### Змінні у `.env`
+
+```env
+WEBHOOK_URL=https://bot.your-domain.com
+WEBHOOK_SECRET=   # openssl rand -hex 32
+```
+
+Перезапустити бота:
+```bash
+docker compose -f docker-compose.prod.yml up -d --build bot
+```
+
+Перевірити реєстрацію:
+```bash
+curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
+```
+
 ## Корисні команди
 
 ```bash

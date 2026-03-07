@@ -51,13 +51,50 @@ async def main() -> None:
     dp.include_router(info.router)
     dp.include_router(common.router)
 
-    logger.info("Bot started")
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await close_pool(pool)
-        await bot.session.close()
-        logger.info("Bot stopped")
+    WEBHOOK_PATH = "/webhook"
+
+    if config.webhook_url:
+        from aiohttp import web
+        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+        async def on_startup(bot: Bot) -> None:
+            await bot.set_webhook(
+                url=f"{config.webhook_url}{WEBHOOK_PATH}",
+                secret_token=config.webhook_secret,
+            )
+            logger.info("Webhook set: %s%s", config.webhook_url, WEBHOOK_PATH)
+
+        async def on_shutdown(bot: Bot) -> None:
+            await bot.delete_webhook()
+            await close_pool(pool)
+            await bot.session.close()
+            logger.info("Bot stopped (webhook)")
+
+        dp.startup.register(on_startup)
+        dp.shutdown.register(on_shutdown)
+
+        aio_app = web.Application()
+        SimpleRequestHandler(
+            dispatcher=dp,
+            bot=bot,
+            secret_token=config.webhook_secret,
+        ).register(aio_app, path=WEBHOOK_PATH)
+        setup_application(aio_app, dp, bot=bot)
+
+        runner = web.AppRunner(aio_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", 8081)
+        await site.start()
+        logger.info("Bot started (webhook mode, port 8081)")
+        await asyncio.Event().wait()
+    else:
+        logger.info("Bot started (polling mode)")
+        try:
+            await dp.start_polling(bot)
+        finally:
+            await close_pool(pool)
+            await bot.session.close()
+            logger.info("Bot stopped")
 
 
 if __name__ == "__main__":

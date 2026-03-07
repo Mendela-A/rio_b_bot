@@ -14,6 +14,8 @@ class Config:
     db_user: str
     db_password: str
     admin_chat_id: int
+    webhook_url: str | None
+    webhook_secret: str | None
 
 
 def load_config() -> Config:
@@ -31,4 +33,6 @@ def load_config() -> Config:
         db_user=require("DB_USER"),
         db_password=require("DB_PASSWORD"),
         admin_chat_id=int(os.getenv("ADMIN_CHAT_ID") or "0"),
+        webhook_url=os.getenv("WEBHOOK_URL") or None,
+        webhook_secret=os.getenv("WEBHOOK_SECRET") or None,
     )
