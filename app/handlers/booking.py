@@ -190,8 +190,28 @@ async def booking_children(message: Message, state: FSMContext, bot: Bot, pool: 
 
 @router.callback_query(F.data.startswith("booking:date:"), BookingStates.waiting_date)
 async def booking_date(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
-    booking_date = callback.data.split(":", 2)[2]
-    await state.update_data(booking_date=booking_date)
+    from datetime import timedelta
+    raw = callback.data.split(":", 2)[2]
+
+    try:
+        parsed = dt_date.fromisoformat(raw)
+    except ValueError:
+        await callback.answer("Невірна дата", show_alert=True)
+        return
+
+    today = dt_date.today()
+    days_ahead = int(await get_setting(pool, "booking_days_ahead", "14"))
+    if not (today <= parsed <= today + timedelta(days=days_ahead)):
+        await callback.answer("Ця дата недоступна", show_alert=True)
+        return
+
+    blocked = await get_blocked_dates(pool)
+    blocked_wdays = await get_blocked_weekdays(pool)
+    if parsed in blocked or parsed.weekday() in blocked_wdays:
+        await callback.answer("Ця дата заблокована", show_alert=True)
+        return
+
+    await state.update_data(booking_date=raw)
 
     data = await state.get_data()
     cart_items = await cart_get(pool, callback.from_user.id)

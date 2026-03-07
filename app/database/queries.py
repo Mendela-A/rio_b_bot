@@ -104,7 +104,7 @@ async def cart_add(pool: asyncpg.Pool, telegram_id: int, service_id: int) -> Non
         """
         INSERT INTO cart_items (telegram_id, service_id, quantity)
         VALUES ($1, $2, 1)
-        ON CONFLICT (telegram_id, service_id) DO UPDATE SET quantity = cart_items.quantity + 1
+        ON CONFLICT (telegram_id, service_id) DO UPDATE SET quantity = LEAST(cart_items.quantity + 1, 10)
         """,
         telegram_id,
         service_id,
@@ -141,7 +141,9 @@ async def cart_clear(pool: asyncpg.Pool, telegram_id: int) -> None:
 
 # --- Bookings ---
 
-async def get_user_bookings(pool: asyncpg.Pool, telegram_id: int) -> list[asyncpg.Record]:
+async def get_user_bookings(
+    pool: asyncpg.Pool, telegram_id: int, *, limit: int = 10
+) -> list[asyncpg.Record]:
     return await pool.fetch(
         """
         SELECT b.id, b.booking_date, b.status, b.children_count,
@@ -154,9 +156,10 @@ async def get_user_bookings(pool: asyncpg.Pool, telegram_id: int) -> list[asyncp
         WHERE b.telegram_id = $1
         GROUP BY b.id
         ORDER BY b.booking_date DESC
-        LIMIT 10
+        LIMIT $2
         """,
         telegram_id,
+        limit,
     )
 
 

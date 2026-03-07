@@ -11,47 +11,6 @@ _templates = Jinja2Templates(
     directory=os.path.join(os.path.dirname(__file__), "..", "templates")
 )
 
-# key → (default_value, hint_for_operator)
-_REGISTRY: dict[str, tuple[str, str]] = {
-    "menu.greeting": (
-        "Вітаємо у дитячому розважальному центрі «РІО» 💛\n"
-        "Раді бачити вас! Оберіть, будь ласка, що вас цікавить:",
-        "Привітання при /start",
-    ),
-    "booking.ask_name": (
-        "📝 Введіть прізвище та ім'я:",
-        "Запит імені (крок 1)",
-    ),
-    "booking.ask_phone": (
-        "📱 Введіть номер телефону або натисніть кнопку нижче:",
-        "Запит телефону (крок 2)",
-    ),
-    "booking.ask_children": (
-        "👶 Скільки дітей буде на святі?",
-        "Запит кількості дітей (крок 3)",
-    ),
-    "booking.ask_date": (
-        "📅 Оберіть дату:",
-        "Запит дати (крок 4)",
-    ),
-    "booking.success": (
-        "✅ Бронювання #{id} прийнято!\n\nМи зв'яжемося з вами для підтвердження.",
-        "Підтвердження бронювання  —  {id} буде замінено на номер",
-    ),
-    "booking.cancelled": (
-        "Бронювання скасовано.",
-        "Повідомлення про скасування",
-    ),
-    "cart.added": (
-        "✅ Додано до кошика!",
-        "Спливаюче повідомлення при додаванні послуги",
-    ),
-    "cart.empty": (
-        "🛒 Кошик порожній.",
-        "Повідомлення про порожній кошик",
-    ),
-}
-
 
 class BotTextsView(CustomView):
     def __init__(self) -> None:
@@ -74,17 +33,18 @@ class BotTextsView(CustomView):
 
     async def _render_page(self, request: Request) -> Response:
         async with db.pool.acquire() as conn:
-            rows = await conn.fetch("SELECT key, value FROM bot_texts")
-        db_values = {r["key"]: r["value"] for r in rows}
+            rows = await conn.fetch(
+                "SELECT key, hint, default_value, value FROM bot_texts ORDER BY key"
+            )
 
         items = [
             {
-                "key": key,
-                "hint": hint,
-                "value": db_values.get(key, default),
-                "is_custom": key in db_values,
+                "key": r["key"],
+                "hint": r["hint"],
+                "value": r["value"] if r["value"] is not None else r["default_value"],
+                "is_custom": r["value"] is not None,
             }
-            for key, (default, hint) in _REGISTRY.items()
+            for r in rows
         ]
 
         return _templates.TemplateResponse(
@@ -105,7 +65,10 @@ class BotTextsView(CustomView):
         if key:
             async with db.pool.acquire() as conn:
                 if action == "reset":
-                    await conn.execute("DELETE FROM bot_texts WHERE key=$1", key)
+                    # Keep the row (preserves hint + default_value), just clear override
+                    await conn.execute(
+                        "UPDATE bot_texts SET value = NULL WHERE key = $1", key
+                    )
                 elif value:
                     await conn.execute(
                         """

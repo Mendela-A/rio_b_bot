@@ -67,7 +67,7 @@ class DashboardView(CustomView):
 
 
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict")
 app.mount(
     "/uploads",
     StaticFiles(directory=str(UPLOADS_DIR)),
@@ -82,7 +82,7 @@ app.mount(
 admin = BaseAdmin(
     title="РІО Адмін",
     auth_provider=MyAuthProvider(),
-    middlewares=[Middleware(SessionMiddleware, secret_key=SECRET_KEY)],
+    middlewares=[Middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict")],
     index_view=DashboardView(),
 )
 

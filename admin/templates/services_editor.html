@@ -170,12 +170,17 @@ document.getElementById('del-form').addEventListener('submit', () => {
   sessionStorage.setItem(SCROLL_KEY, window.scrollY);
 });
 
+function setSaveDisabled(disabled) {
+  document.querySelector('#svc-form [type="submit"]').disabled = disabled;
+}
+
 function resetPhotoUI() {
   document.getElementById('photo-input').value = '';
   document.getElementById('crop-container').style.display = 'none';
   document.getElementById('crop-btn').style.display = 'none';
   document.getElementById('upload-status').style.display = 'none';
   if (cropper) { cropper.destroy(); cropper = null; }
+  setSaveDisabled(false);
 }
 
 function showCurrentPhoto(url) {
@@ -241,6 +246,7 @@ document.getElementById('photo-input').addEventListener('change', function() {
 
   const cropImg = document.getElementById('crop-img');
   const reader = new FileReader();
+  setSaveDisabled(true);
   reader.onload = (e) => {
     cropImg.src = e.target.result;
     document.getElementById('crop-container').style.display = 'block';

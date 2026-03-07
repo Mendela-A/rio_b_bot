@@ -29,7 +29,7 @@ class BookingsView(CustomView):
             label="Бронювання",
             icon="fa fa-calendar-check",
             path="/bookings",
-            methods=["GET"],
+            methods=["GET", "POST"],
             name="bookings",
         )
 
