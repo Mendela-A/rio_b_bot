@@ -19,6 +19,12 @@
       <span class="svc-name">{{ svc.name }}</span>
       <span class="svc-price">—</span>
       {% if not svc.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.first %}disabled{% endif %}
+        onclick="moveService({{ svc.id }}, 'up')">↑</button>
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.last %}disabled{% endif %}
+        onclick="moveService({{ svc.id }}, 'down')">↓</button>
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ svc.id }}, {{ cat.id }}, 0,
           {{ svc.name|tojson }}, {{ (svc.price or 0)|int }}, {{ (svc.description or "")|tojson }}, {{ svc.is_active|lower }}, {{ (svc.photo_url or "")|tojson }})'>✏️
@@ -34,6 +40,12 @@
       <span class="svc-name">{{ ch.name }}</span>
       <span class="svc-price">{% if ch.price %}{{ ch.price|int }} грн{% else %}—{% endif %}</span>
       {% if not ch.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.first %}disabled{% endif %}
+        onclick="moveService({{ ch.id }}, 'up')">↑</button>
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.last %}disabled{% endif %}
+        onclick="moveService({{ ch.id }}, 'down')">↓</button>
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ ch.id }}, {{ cat.id }}, {{ svc.id }},
           {{ ch.name|tojson }}, {{ (ch.price or 0)|int }},
@@ -55,6 +67,12 @@
       <span class="svc-name">{{ svc.name }}</span>
       <span class="svc-price">{% if svc.price %}{{ svc.price|int }} грн{% else %}—{% endif %}</span>
       {% if not svc.is_active %}<span class="badge bg-secondary svc-badge">вимк.</span>{% endif %}
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.first %}disabled{% endif %}
+        onclick="moveService({{ svc.id }}, 'up')">↑</button>
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.last %}disabled{% endif %}
+        onclick="moveService({{ svc.id }}, 'down')">↓</button>
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ svc.id }}, {{ cat.id }}, 0,
           {{ svc.name|tojson }}, {{ (svc.price or 0)|int }},
@@ -230,6 +248,16 @@ function openEdit(id, catId, parentId, name, price, desc, isActive, photoUrl) {
   resetPhotoUI();
   modal.show();
   setTimeout(() => document.getElementById('f-name').focus(), 300);
+}
+
+async function moveService(id, direction) {
+  sessionStorage.setItem(SCROLL_KEY, window.scrollY);
+  const resp = await fetch('/api/service/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id, direction})
+  });
+  if ((await resp.json()).ok) location.reload();
 }
 
 function askDelete(id, name) {

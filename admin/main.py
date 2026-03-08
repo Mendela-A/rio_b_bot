@@ -147,3 +147,42 @@ async def upload_photo(request: Request, file: UploadFile = File(...)):
     img.save(str(filepath), "WEBP", quality=85)
 
     return JSONResponse({"url": f"/uploads/{filename}"})
+
+
+@app.post("/api/service/move")
+async def move_service(request: Request):
+    if not request.session.get("username"):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    data = await request.json()
+    service_id = int(data["id"])
+    direction = data["direction"]  # "up" або "down"
+
+    async with db.pool.acquire() as conn:
+        svc = await conn.fetchrow(
+            "SELECT id, category_id, parent_id FROM services WHERE id=$1", service_id
+        )
+        if not svc:
+            return JSONResponse({"error": "not found"}, status_code=404)
+
+        siblings = await conn.fetch(
+            """SELECT id FROM services
+               WHERE category_id=$1 AND parent_id IS NOT DISTINCT FROM $2
+               ORDER BY sort_order NULLS LAST, id""",
+            svc["category_id"], svc["parent_id"],
+        )
+        ids = [s["id"] for s in siblings]
+        idx = ids.index(service_id)
+
+        if direction == "up" and idx == 0:
+            return JSONResponse({"ok": True})
+        if direction == "down" and idx == len(ids) - 1:
+            return JSONResponse({"ok": True})
+
+        swap_idx = idx - 1 if direction == "up" else idx + 1
+        async with conn.transaction():
+            for i, s in enumerate(siblings):
+                await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", i + 1, s["id"])
+            await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", swap_idx + 1, service_id)
+            await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", idx + 1, ids[swap_idx])
+
+    return JSONResponse({"ok": True})
