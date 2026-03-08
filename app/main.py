@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from app import texts
 from app.config import load_config
 from app.database.connection import create_pool, close_pool
-from app.handlers import start, booking, cart, services, info, common
+from app.handlers import start, booking, cart, services, info, common, admin
 from app.middleware.throttling import ThrottlingMiddleware
 
 if os.getenv("LOG_FORMAT", "text") == "json":
@@ -45,6 +45,7 @@ async def main() -> None:
     dp.callback_query.middleware(ThrottlingMiddleware())
 
     dp.include_router(start.router)
+    dp.include_router(admin.router)
     dp.include_router(booking.router)
     dp.include_router(cart.router)
     dp.include_router(services.router)

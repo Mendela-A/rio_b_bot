@@ -20,7 +20,7 @@ from app.database.queries import (
     get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
     get_booking_by_id, update_booking_status,
 )
-from app.keyboards.booking_kb import cancel_kb, date_selection_kb, confirm_booking_kb, cart_kb
+from app.keyboards.booking_kb import cancel_kb, date_selection_kb, calendar_kb, confirm_booking_kb, cart_kb
 from app.keyboards.main_menu import main_menu_kb
 
 router = Router()
@@ -219,6 +219,51 @@ async def booking_date(callback: CallbackQuery, state: FSMContext, pool: asyncpg
 
     await callback.message.edit_text(_confirmation_text(data, cart_items), reply_markup=confirm_booking_kb())
     await state.update_data(bot_msg_id=callback.message.message_id)
+    await callback.answer()
+
+
+# --- Calendar navigation ---
+
+@router.callback_query(F.data.startswith("booking:cal:"), BookingStates.waiting_date)
+async def booking_calendar_nav(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    parts = callback.data.split(":")
+    year, month = int(parts[2]), int(parts[3])
+    blocked = await get_blocked_dates(pool)
+    blocked_weekdays = await get_blocked_weekdays(pool)
+    await callback.message.edit_reply_markup(reply_markup=calendar_kb(year, month, blocked, blocked_weekdays))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("booking:caldate:"), BookingStates.waiting_date)
+async def booking_caldate(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    raw = callback.data.split(":", 2)[2]
+    try:
+        parsed = dt_date.fromisoformat(raw)
+    except ValueError:
+        await callback.answer("Невірна дата", show_alert=True)
+        return
+
+    today = dt_date.today()
+    if parsed < today:
+        await callback.answer("Ця дата вже минула", show_alert=True)
+        return
+
+    blocked = await get_blocked_dates(pool)
+    blocked_wdays = await get_blocked_weekdays(pool)
+    if parsed in blocked or parsed.weekday() in blocked_wdays:
+        await callback.answer("Ця дата заблокована", show_alert=True)
+        return
+
+    await state.update_data(booking_date=raw)
+    data = await state.get_data()
+    cart_items = await cart_get(pool, callback.from_user.id)
+    await callback.message.edit_text(_confirmation_text(data, cart_items), reply_markup=confirm_booking_kb())
+    await state.update_data(bot_msg_id=callback.message.message_id)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "booking:noop")
+async def booking_noop(callback: CallbackQuery) -> None:
     await callback.answer()
 
 

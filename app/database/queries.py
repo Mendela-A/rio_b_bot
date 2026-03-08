@@ -1,3 +1,5 @@
+from datetime import date
+
 import asyncpg
 
 
@@ -213,3 +215,43 @@ async def create_booking_items(
             for item in cart_items
         ],
     )
+
+
+# --- Admin queries ---
+
+async def get_stats(pool: asyncpg.Pool) -> asyncpg.Record:
+    return await pool.fetchrow("""
+        SELECT
+            COUNT(*)                                      AS total_bookings,
+            COUNT(*) FILTER (WHERE status = 'new')       AS count_new,
+            COUNT(*) FILTER (WHERE status = 'confirmed') AS count_confirmed,
+            COUNT(*) FILTER (WHERE status = 'cancelled') AS count_cancelled,
+            (SELECT COUNT(*) FROM inquiries)              AS total_inquiries
+        FROM bookings
+    """)
+
+
+async def get_bookings_in_range(
+    pool: asyncpg.Pool, date_from: date, date_to: date
+) -> list[asyncpg.Record]:
+    return await pool.fetch("""
+        SELECT b.id, b.full_name, b.phone, b.children_count, b.booking_date, b.status, b.telegram_id,
+               COALESCE(string_agg(bi.service_name, ', ' ORDER BY bi.id), '') AS services_summary
+        FROM bookings b
+        LEFT JOIN booking_items bi ON bi.booking_id = b.id
+        WHERE b.booking_date BETWEEN $1 AND $2
+        GROUP BY b.id
+        ORDER BY b.booking_date ASC, b.id ASC
+    """, date_from, date_to)
+
+
+async def get_bookings_new(pool: asyncpg.Pool) -> list[asyncpg.Record]:
+    return await pool.fetch("""
+        SELECT b.id, b.full_name, b.phone, b.children_count, b.booking_date, b.status, b.telegram_id,
+               COALESCE(string_agg(bi.service_name, ', ' ORDER BY bi.id), '') AS services_summary
+        FROM bookings b
+        LEFT JOIN booking_items bi ON bi.booking_id = b.id
+        WHERE b.status = 'new'
+        GROUP BY b.id
+        ORDER BY b.booking_date ASC, b.id ASC
+    """)
