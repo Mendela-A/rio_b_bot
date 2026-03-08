@@ -18,6 +18,7 @@ from app.config import load_config
 from app.database.queries import (
     cart_get, cart_clear, create_booking, create_booking_items, get_user_bookings,
     get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
+    get_booking_by_id, update_booking_status,
 )
 from app.keyboards.booking_kb import cancel_kb, date_selection_kb, confirm_booking_kb, cart_kb
 from app.keyboards.main_menu import main_menu_kb
@@ -460,8 +461,12 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list)
             lines.append(f"\n💰 Разом: {total:.0f} грн")
     else:
         lines.append("\nПослуги не обрані")
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Підтвердити", callback_data=f"adm:ok:{booking_id}"),
+        InlineKeyboardButton(text="❌ Відхилити",   callback_data=f"adm:no:{booking_id}"),
+    ]])
     try:
-        await bot.send_message(_config.admin_chat_id, "\n".join(lines), parse_mode=None)
+        await bot.send_message(_config.admin_chat_id, "\n".join(lines), parse_mode=None, reply_markup=kb)
     except Exception as e:
         logger.error("Failed to notify admin: %s", e)
 
@@ -483,6 +488,18 @@ async def _notify_admin_cancelled(bot: Bot, booking: dict, reason: str = "") -> 
         await bot.send_message(_config.admin_chat_id, text, parse_mode=None)
     except Exception as e:
         logger.error("Failed to notify admin about cancellation: %s", e)
+
+
+async def _notify_client_from_bot(bot: Bot, telegram_id: int, booking_id: int, booking_date, new_status: str) -> None:
+    date_str = booking_date.strftime("%d.%m.%Y")
+    if new_status == "confirmed":
+        text = f"✅ Ваше бронювання #{booking_id} на {date_str} підтверджено!\nЧекаємо вас! 🎉"
+    else:
+        text = f"❌ Ваше бронювання #{booking_id} на {date_str} скасовано.\nЗверніться до нас для уточнень."
+    try:
+        await bot.send_message(telegram_id, text)
+    except Exception as e:
+        logger.error("Failed to notify client %s: %s", telegram_id, e)
 
 
 async def _notify_admin_inquiry(
@@ -629,6 +646,34 @@ async def user_cancel_reason_text(message: Message, state: FSMContext, pool: asy
 
     bookings = await get_user_bookings(pool, message.from_user.id)
     await _edit(_my_bookings_text(bookings), _my_bookings_kb(bookings))
+
+
+@router.callback_query(F.data.startswith("adm:"))
+async def admin_booking_action(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+    if callback.message.chat.id != _config.admin_chat_id:
+        await callback.answer()
+        return
+
+    _, action, bid_str = callback.data.split(":", 2)
+    booking_id = int(bid_str)
+    new_status = "confirmed" if action == "ok" else "cancelled"
+
+    booking = await get_booking_by_id(pool, booking_id)
+    if not booking:
+        await callback.answer("Бронювання не знайдено")
+        return
+    if booking["status"] != "new":
+        label = "✅ Підтверджено" if booking["status"] == "confirmed" else "❌ Скасовано"
+        await callback.answer(f"Вже оброблено: {label}")
+        return
+
+    await update_booking_status(pool, booking_id, new_status)
+    await _notify_client_from_bot(callback.bot, booking["telegram_id"], booking_id, booking["booking_date"], new_status)
+
+    label = "✅ Підтверджено" if new_status == "confirmed" else "❌ Відхилено"
+    original_text = callback.message.text or ""
+    await callback.message.edit_text(f"{original_text}\n\n{label}", reply_markup=None)
+    await callback.answer(label)
 
 
 async def _do_cancel_booking(

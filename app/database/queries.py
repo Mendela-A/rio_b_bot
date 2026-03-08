@@ -141,6 +141,19 @@ async def cart_clear(pool: asyncpg.Pool, telegram_id: int) -> None:
 
 # --- Bookings ---
 
+async def get_booking_by_id(pool: asyncpg.Pool, booking_id: int) -> asyncpg.Record:
+    return await pool.fetchrow(
+        "SELECT id, telegram_id, booking_date, status, full_name FROM bookings WHERE id=$1",
+        booking_id,
+    )
+
+
+async def update_booking_status(pool: asyncpg.Pool, booking_id: int, status: str) -> None:
+    await pool.execute(
+        "UPDATE bookings SET status=$1 WHERE id=$2", status, booking_id
+    )
+
+
 async def get_user_bookings(
     pool: asyncpg.Pool, telegram_id: int, *, limit: int = 10
 ) -> list[asyncpg.Record]:
