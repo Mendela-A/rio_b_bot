@@ -1,13 +1,9 @@
-from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
 from starlette_admin.views import CustomView
-import os
-import db
 
-_templates = Jinja2Templates(
-    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
-)
+import db
+from shared import templates as _templates
 
 _SETTINGS_META = {
     "booking_days_ahead": {

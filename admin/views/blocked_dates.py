@@ -1,16 +1,11 @@
-import os
 from datetime import date
 
-from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
 from starlette_admin.views import CustomView
 
 import db
-
-_templates = Jinja2Templates(
-    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
-)
+from shared import templates as _templates
 
 
 class BlockedDatesView(CustomView):
@@ -79,16 +74,23 @@ class BlockedDatesView(CustomView):
                 raw = (form.get("date") or "").strip()
                 reason = (form.get("reason") or "").strip()
                 if raw:
+                    try:
+                        blocked_date = date.fromisoformat(raw)
+                    except ValueError:
+                        return RedirectResponse("/admin/blocked-dates", status_code=303)
                     await conn.execute(
                         "INSERT INTO blocked_dates (date, reason) VALUES ($1, $2) "
                         "ON CONFLICT (date) DO UPDATE SET reason = $2",
-                        date.fromisoformat(raw), reason,
+                        blocked_date, reason,
                     )
             elif action == "delete":
                 raw = (form.get("date") or "").strip()
                 if raw:
+                    try:
+                        blocked_date = date.fromisoformat(raw)
+                    except ValueError:
+                        return RedirectResponse("/admin/blocked-dates", status_code=303)
                     await conn.execute(
-                        "DELETE FROM blocked_dates WHERE date = $1",
-                        date.fromisoformat(raw),
+                        "DELETE FROM blocked_dates WHERE date = $1", blocked_date,
                     )
         return RedirectResponse("/admin/blocked-dates", status_code=303)

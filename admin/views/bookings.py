@@ -2,19 +2,15 @@ import logging
 import os
 
 import httpx
-from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
 from starlette_admin.views import CustomView
 
 import db
+from shared import templates as _templates
 
 logger = logging.getLogger(__name__)
 _BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-
-_templates = Jinja2Templates(
-    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
-)
 
 STATUS_TRANSITIONS = {
     "confirm": "confirmed",
@@ -128,6 +124,10 @@ class BookingsView(CustomView):
                 row = await conn.fetchrow(
                     "SELECT telegram_id, booking_date FROM bookings WHERE id=$1", bid
                 )
+            logger.info(
+                "User %s changed booking #%d to %s",
+                request.session.get("username"), bid, new_status,
+            )
             if row:
                 await _notify_client(row["telegram_id"], bid, row["booking_date"], new_status)
 
@@ -156,5 +156,7 @@ async def _notify_client(telegram_id: int, booking_id: int, booking_date, new_st
                 f"https://api.telegram.org/bot{_BOT_TOKEN}/sendMessage",
                 json={"chat_id": telegram_id, "text": text},
             )
+    except httpx.HTTPError as e:
+        logger.error("HTTP error notifying client %s: %s", telegram_id, e)
     except Exception as e:
         logger.error("Failed to notify client %s: %s", telegram_id, e)

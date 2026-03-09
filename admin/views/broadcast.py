@@ -1,21 +1,21 @@
 import asyncio
 import io
+import logging
 import os
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
-from fastapi.templating import Jinja2Templates
+from PIL import Image
 from starlette.background import BackgroundTask
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
 from starlette_admin.views import CustomView
 
 import db
+from shared import templates as _templates, MAX_IMAGE_WIDTH, IMAGE_QUALITY, MAX_UPLOAD_SIZE
 
-_templates = Jinja2Templates(
-    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
-)
+logger = logging.getLogger(__name__)
 
 UPLOADS_DIR = Path("/app/uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -142,20 +142,21 @@ class BroadcastView(CustomView):
         if photo_file and hasattr(photo_file, "filename") and photo_file.filename:
             contents = await photo_file.read()
             if contents:
-                try:
-                    from PIL import Image
-                    img = Image.open(io.BytesIO(contents))
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
-                    max_width = 1280
-                    if img.width > max_width:
-                        ratio = max_width / img.width
-                        img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
-                    filename = uuid4().hex + ".webp"
-                    img.save(str(UPLOADS_DIR / filename), "WEBP", quality=85)
-                    photo_url = f"/uploads/{filename}"
-                except Exception:
-                    pass
+                if len(contents) > MAX_UPLOAD_SIZE:
+                    logger.warning("Broadcast photo too large (%d bytes), skipping", len(contents))
+                else:
+                    try:
+                        img = Image.open(io.BytesIO(contents))
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        if img.width > MAX_IMAGE_WIDTH:
+                            ratio = MAX_IMAGE_WIDTH / img.width
+                            img = img.resize((MAX_IMAGE_WIDTH, int(img.height * ratio)), Image.LANCZOS)
+                        filename = uuid4().hex + ".webp"
+                        img.save(str(UPLOADS_DIR / filename), "WEBP", quality=IMAGE_QUALITY)
+                        photo_url = f"/uploads/{filename}"
+                    except Exception:
+                        logger.exception("Failed to process broadcast photo")
 
         async with db.pool.acquire() as conn:
             broadcast_id = await conn.fetchval(

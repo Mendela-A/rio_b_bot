@@ -1,17 +1,12 @@
-import os
 from pathlib import Path
 from typing import Optional
 
-from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
 from starlette_admin.views import CustomView
 
 import db
-
-_templates = Jinja2Templates(
-    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
-)
+from shared import templates as _templates
 
 
 class ServicesEditorView(CustomView):
@@ -36,19 +31,24 @@ class ServicesEditorView(CustomView):
     async def _render_page(self, request: Request) -> Response:
         async with db.pool.acquire() as conn:
             categories = await conn.fetch(
-                "SELECT id, name FROM categories ORDER BY id"
+                "SELECT id, name FROM categories ORDER BY sort_order NULLS LAST, id"
             )
             services = await conn.fetch(
                 """
                 SELECT id, category_id, parent_id, name, price, description, is_active, photo_url, sort_order
                 FROM services
-                ORDER BY parent_id NULLS FIRST, sort_order NULLS LAST, id
+                ORDER BY category_id, parent_id NULLS FIRST, sort_order NULLS LAST, id
                 """
             )
 
+        # Build lookup maps in a single pass — O(n) instead of O(n*m)
+        svcs_by_cat: dict[int, list] = {}
+        for s in services:
+            svcs_by_cat.setdefault(s["category_id"], []).append(dict(s))
+
         data = []
         for cat in categories:
-            cat_svcs = [dict(s) for s in services if s["category_id"] == cat["id"]]
+            cat_svcs = svcs_by_cat.get(cat["id"], [])
             children_map: dict[int, list] = {}
             for s in cat_svcs:
                 if s["parent_id"] is not None:
@@ -102,8 +102,10 @@ class ServicesEditorView(CustomView):
             else:
                 old = await conn.fetchrow("SELECT photo_url FROM services WHERE id=$1", sid)
                 if old and old["photo_url"] and old["photo_url"] != photo_url:
-                    old_file = Path("/app") / old["photo_url"].lstrip("/")
-                    old_file.unlink(missing_ok=True)
+                    uploads_root = Path("/app/uploads").resolve()
+                    old_path = (Path("/app") / old["photo_url"].lstrip("/")).resolve()
+                    if old_path.is_relative_to(uploads_root):
+                        old_path.unlink(missing_ok=True)
                 await conn.execute(
                     """
                     UPDATE services

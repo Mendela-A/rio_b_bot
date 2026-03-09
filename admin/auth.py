@@ -1,14 +1,12 @@
 from typing import Optional
 
-from passlib.context import CryptContext
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
 from starlette_admin.exceptions import LoginFailed
 
 import db
-
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from shared import pwd_ctx
 
 
 class MyAuthProvider(AuthProvider):

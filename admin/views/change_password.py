@@ -1,17 +1,9 @@
-import os
-
-from fastapi.templating import Jinja2Templates
-from passlib.context import CryptContext
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
 from starlette_admin.views import CustomView
 
 import db
-
-_templates = Jinja2Templates(
-    directory=os.path.join(os.path.dirname(__file__), "..", "templates")
-)
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from shared import templates as _templates, pwd_ctx
 
 
 class ChangePasswordView(CustomView):

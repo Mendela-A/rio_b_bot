@@ -24,8 +24,7 @@ async def init_pool() -> None:
 
 
 async def ensure_default_admin() -> None:
-    from passlib.context import CryptContext
-    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    from shared import pwd_ctx
     username = os.getenv("ADMIN_USER", "admin")
     password = os.getenv("ADMIN_PASSWORD", "admin")
     async with pool.acquire() as conn:

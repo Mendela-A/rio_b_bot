@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import subprocess
 import zipfile
@@ -10,8 +11,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from PIL import Image
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, RedirectResponse
@@ -21,6 +23,7 @@ from starlette_admin.views import CustomView
 import db
 from auth import MyAuthProvider
 from db import lifespan
+from shared import templates as _templates, MAX_IMAGE_WIDTH, IMAGE_QUALITY, MAX_UPLOAD_SIZE
 from views.bookings import BookingsView
 from views.bot_texts import BotTextsView
 from views.categories import CategoryView
@@ -34,15 +37,29 @@ from views.change_password import ChangePasswordView
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "changeme-set-in-env")
-DB_HOST = os.getenv("DB_HOST", "postgres")
-DB_USER = os.getenv("DB_USER", "")
-DB_NAME = os.getenv("DB_NAME", "")
+logger = logging.getLogger(__name__)
+
+SECRET_KEY = os.getenv("ADMIN_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("ADMIN_SECRET_KEY must be set in environment")
+
+DB_HOST     = os.getenv("DB_HOST", "postgres")
+DB_USER     = os.getenv("DB_USER", "")
+DB_NAME     = os.getenv("DB_NAME", "")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 UPLOADS_DIR = Path("/app/uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-_templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"]        = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"]        = "strict-origin-when-cross-origin"
+        return response
 
 
 class DashboardView(CustomView):
@@ -70,6 +87,7 @@ class DashboardView(CustomView):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict")
 app.mount(
     "/uploads",
@@ -82,6 +100,18 @@ app.mount(
     name="static",
 )
 
+
+@app.get("/health")
+async def health():
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error("Health check failed: %s", e)
+        return JSONResponse({"status": "error"}, status_code=503)
+
+
 @app.get("/admin/export-db")
 async def export_db(request: Request):
     if not request.session.get("is_superadmin"):
@@ -89,9 +119,13 @@ async def export_db(request: Request):
 
     result = subprocess.run(
         ["pg_dump", "-h", DB_HOST, "-U", DB_USER, DB_NAME],
-        env={**os.environ, "PGPASSWORD": DB_PASSWORD},
+        env={"PGPASSWORD": DB_PASSWORD, "PATH": os.environ.get("PATH", "")},
         capture_output=True,
     )
+
+    if result.returncode != 0:
+        logger.error("pg_dump failed: %s", result.stderr.decode())
+        return JSONResponse({"error": "Експорт не вдався"}, status_code=500)
 
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
     zip_buffer = io.BytesIO()
@@ -99,7 +133,7 @@ async def export_db(request: Request):
         zf.writestr(f"rio_{ts}.sql", result.stdout)
         if UPLOADS_DIR.exists():
             for photo in UPLOADS_DIR.iterdir():
-                if photo.is_file():
+                if photo.is_file() and photo.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
                     zf.write(photo, f"uploads/{photo.name}")
 
     return Response(
@@ -134,21 +168,24 @@ async def upload_photo(request: Request, file: UploadFile = File(...)):
     if not request.session.get("username"):
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
-    from PIL import Image
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        return JSONResponse({"error": "Невірний тип файлу"}, status_code=400)
 
     contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE:
+        return JSONResponse({"error": "Файл занадто великий (макс. 5 МБ)"}, status_code=413)
+
     img = Image.open(io.BytesIO(contents))
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
 
-    max_width = 1280
-    if img.width > max_width:
-        ratio = max_width / img.width
-        img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
+    if img.width > MAX_IMAGE_WIDTH:
+        ratio = MAX_IMAGE_WIDTH / img.width
+        img = img.resize((MAX_IMAGE_WIDTH, int(img.height * ratio)), Image.LANCZOS)
 
     filename = uuid4().hex + ".webp"
     filepath = UPLOADS_DIR / filename
-    img.save(str(filepath), "WEBP", quality=85)
+    img.save(str(filepath), "WEBP", quality=IMAGE_QUALITY)
 
     return JSONResponse({"url": f"/uploads/{filename}"})
 
@@ -189,7 +226,7 @@ async def move_service(request: Request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     data = await request.json()
     service_id = int(data["id"])
-    direction = data["direction"]  # "up" або "down"
+    direction = data["direction"]
 
     async with db.pool.acquire() as conn:
         svc = await conn.fetchrow(
