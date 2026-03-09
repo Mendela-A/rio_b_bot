@@ -15,6 +15,12 @@
     <div class="svc-row">
       <span class="svc-name">{{ cat.name }}</span>
       <span class="svc-price" style="font-family: ui-monospace, monospace; font-size:.79rem; min-width:auto; margin-right:8px">{{ cat.type }}</span>
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.first %}disabled{% endif %}
+        onclick="moveCat({{ cat.id }}, 'up')">↑</button>
+      <button class="btn btn-sm btn-outline-secondary"
+        {% if loop.last %}disabled{% endif %}
+        onclick="moveCat({{ cat.id }}, 'down')">↓</button>
       <button class="btn btn-sm btn-outline-primary"
         onclick='openEdit({{ cat.id }}, {{ cat.name|tojson }}, {{ cat.type|tojson }})'>✏️</button>
       <button class="btn btn-sm btn-outline-danger"
@@ -86,6 +92,15 @@ function openEdit(id, name, type) {
   document.getElementById('f-type').value = type;
   modal.show();
   setTimeout(() => document.getElementById('f-name').focus(), 300);
+}
+
+async function moveCat(id, direction) {
+  await fetch('/api/category/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id, direction}),
+  });
+  location.reload();
 }
 
 function askDelete(id, name) {

@@ -4,23 +4,39 @@
 {% block page_title %}Бронювання{% endblock %}
 
 {% block topbar_actions %}
-  <span class="text-muted" style="font-size:.88rem">{{ bookings|length }} бронювань · {{ inquiries|length }} заявок</span>
+  <span class="text-muted" style="font-size:.88rem">
+    {{ bookings_count }} бронювань · {{ inquiries_count }} заявок
+  </span>
 {% endblock %}
 
 {% block content %}
 
 {% macro tab(label, href, active) %}
-  <a href="{{ href }}"
-     class="filter-tab {% if active %}active{% endif %}">{{ label }}</a>
+  <a href="{{ href }}" class="filter-tab {% if active %}active{% endif %}">{{ label }}</a>
 {% endmacro %}
 
-{% set pq = ("&period=" ~ period_filter) if period_filter else "" %}
-<!-- Bookings filter -->
+<!-- Section tabs -->
+<div class="section-tabs mb-4">
+  <a href="/admin/bookings?section=bookings"
+     class="section-tab {% if section == 'bookings' %}active{% endif %}">
+    📅 Бронювання
+    <span class="section-tab-count">{{ bookings_count }}</span>
+  </a>
+  <a href="/admin/bookings?section=inquiries"
+     class="section-tab {% if section == 'inquiries' %}active{% endif %}">
+    ⚡ Швидкі заявки
+    <span class="section-tab-count">{{ inquiries_count }}</span>
+  </a>
+</div>
+
+<!-- ── BOOKINGS ── -->
+{% if section == 'bookings' %}
+
 <div class="filter-tabs mb-3">
-  {{ tab("Всі",             "/admin/bookings?" ~ pq,                     status_filter == "") }}
-  {{ tab("🔵 Нові",         "/admin/bookings?status=new" ~ pq,           status_filter == "new") }}
-  {{ tab("✅ Підтверджені", "/admin/bookings?status=confirmed" ~ pq,     status_filter == "confirmed") }}
-  {{ tab("⛔ Скасовані",    "/admin/bookings?status=cancelled" ~ pq,     status_filter == "cancelled") }}
+  {{ tab("Всі",             "/admin/bookings?section=bookings",                      status_filter == "") }}
+  {{ tab("🔵 Нові",         "/admin/bookings?section=bookings&status=new",           status_filter == "new") }}
+  {{ tab("✅ Підтверджені", "/admin/bookings?section=bookings&status=confirmed",     status_filter == "confirmed") }}
+  {{ tab("⛔ Скасовані",    "/admin/bookings?section=bookings&status=cancelled",     status_filter == "cancelled") }}
 </div>
 
 {% if not bookings %}
@@ -67,21 +83,19 @@
 </div>
 {% endfor %}
 
-<!-- Inquiries -->
-<h6 class="text-uppercase fw-semibold mt-5 mb-3"
-    style="font-size:.75rem; letter-spacing:.08em; color:var(--text-muted)">
-  ⚡ Швидкі заявки
-</h6>
+{% endif %}
 
-{% set sq = ("&status=" ~ status_filter) if status_filter else "" %}
+<!-- ── INQUIRIES ── -->
+{% if section == 'inquiries' %}
+
 <div class="filter-tabs mb-3">
-  {{ tab("Всі",       "/admin/bookings?" ~ sq,                  period_filter == "") }}
-  {{ tab("Сьогодні", "/admin/bookings?period=today" ~ sq,       period_filter == "today") }}
-  {{ tab("Тиждень",  "/admin/bookings?period=week" ~ sq,        period_filter == "week") }}
+  {{ tab("Всі",       "/admin/bookings?section=inquiries",                period_filter == "") }}
+  {{ tab("Сьогодні", "/admin/bookings?section=inquiries&period=today",   period_filter == "today") }}
+  {{ tab("Тиждень",  "/admin/bookings?section=inquiries&period=week",    period_filter == "week") }}
 </div>
 
 {% if not inquiries %}
-<div class="text-muted text-center py-4" style="font-size:.93rem">Заявок немає.</div>
+<div class="text-muted text-center py-5" style="font-size:.93rem">Заявок немає.</div>
 {% endif %}
 
 {% for q in inquiries %}
@@ -98,5 +112,7 @@
   </div>
 </div>
 {% endfor %}
+
+{% endif %}
 
 {% endblock %}

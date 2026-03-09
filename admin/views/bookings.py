@@ -39,6 +39,7 @@ class BookingsView(CustomView):
         return await self._render_page(request)
 
     async def _render_page(self, request: Request) -> Response:
+        section = request.query_params.get("section", "bookings")
         status_filter = request.query_params.get("status", "")
         period_filter = request.query_params.get("period", "")
 
@@ -52,32 +53,40 @@ class BookingsView(CustomView):
             period_where = "WHERE created_at >= date_trunc('week', NOW())"
 
         async with db.pool.acquire() as conn:
-            bookings = await conn.fetch(
-                f"""
-                SELECT b.id, b.full_name, b.phone, b.children_count,
-                       b.booking_date, b.status, b.created_at
-                FROM bookings b
-                {bookings_where}
-                ORDER BY b.created_at DESC
-                """,
-                *bookings_params,
-            )
-            items_rows = await conn.fetch(
-                """
-                SELECT booking_id, service_name, price, quantity
-                FROM booking_items
-                WHERE booking_id = ANY($1::int[])
-                """,
-                [r["id"] for r in bookings],
-            )
-            inquiries = await conn.fetch(
-                f"""
-                SELECT id, full_name, phone, service_name, created_at
-                FROM inquiries
-                {period_where}
-                ORDER BY created_at DESC
-                """
-            )
+            bookings_count = await conn.fetchval("SELECT COUNT(*) FROM bookings")
+            inquiries_count = await conn.fetchval("SELECT COUNT(*) FROM inquiries")
+
+            if section == "inquiries":
+                bookings = []
+                items_rows = []
+                inquiries = await conn.fetch(
+                    f"""
+                    SELECT id, full_name, phone, service_name, created_at
+                    FROM inquiries
+                    {period_where}
+                    ORDER BY created_at DESC
+                    """
+                )
+            else:
+                bookings = await conn.fetch(
+                    f"""
+                    SELECT b.id, b.full_name, b.phone, b.children_count,
+                           b.booking_date, b.status, b.created_at
+                    FROM bookings b
+                    {bookings_where}
+                    ORDER BY b.created_at DESC
+                    """,
+                    *bookings_params,
+                )
+                items_rows = await conn.fetch(
+                    """
+                    SELECT booking_id, service_name, price, quantity
+                    FROM booking_items
+                    WHERE booking_id = ANY($1::int[])
+                    """,
+                    [r["id"] for r in bookings],
+                )
+                inquiries = []
 
         items_by_booking: dict[int, list] = {}
         for row in items_rows:
@@ -95,8 +104,11 @@ class BookingsView(CustomView):
         return _templates.TemplateResponse(
             "bookings.html", {
                 "request": request,
+                "section": section,
                 "bookings": data,
                 "inquiries": [dict(r) for r in inquiries],
+                "bookings_count": bookings_count,
+                "inquiries_count": inquiries_count,
                 "status_filter": status_filter,
                 "period_filter": period_filter,
             }

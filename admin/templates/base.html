@@ -13,11 +13,14 @@
 </head>
 <body>
 
+{% if request.session.get("username") %}
 <button class="sidebar-toggle" id="sb-toggle">☰</button>
+{% endif %}
 
 <div class="app-layout">
 
   <!-- Sidebar -->
+  {% if request.session.get("username") %}
   <aside class="sidebar" id="sidebar">
     <a href="/admin" class="sidebar-brand">
       🎉 РІО
@@ -29,9 +32,8 @@
       <a class="nav-link {% if p == '/admin' or p == '/admin/' %}active{% endif %}" href="/admin">
         <span class="nav-icon">🏠</span> Головна
       </a>
-      <a class="nav-link {% if '/admin/bookings' in p %}active{% endif %}" href="/admin/bookings">
-        <span class="nav-icon">📅</span> Бронювання
-      </a>
+
+      <div class="nav-section">Контент</div>
       <a class="nav-link {% if '/admin/services-editor' in p %}active{% endif %}" href="/admin/services-editor">
         <span class="nav-icon">🗂️</span> Послуги
       </a>
@@ -44,18 +46,34 @@
       <a class="nav-link {% if '/admin/bot-texts' in p %}active{% endif %}" href="/admin/bot-texts">
         <span class="nav-icon">💬</span> Тексти бота
       </a>
-      <a class="nav-link {% if '/admin/blocked-dates' in p %}active{% endif %}" href="/admin/blocked-dates">
-        <span class="nav-icon">📆</span> Налашт. дат
+
+      <div class="nav-section">Бронювання</div>
+      <a class="nav-link {% if '/admin/bookings' in p %}active{% endif %}" href="/admin/bookings">
+        <span class="nav-icon">📅</span> Бронювання
       </a>
+      <a class="nav-link {% if '/admin/blocked-dates' in p %}active{% endif %}" href="/admin/blocked-dates">
+        <span class="nav-icon">📆</span> Блоковані дати
+      </a>
+
+      <div class="nav-section">Система</div>
+      <a class="nav-link {% if '/admin/settings' in p %}active{% endif %}" href="/admin/settings">
+        <span class="nav-icon">⚙️</span> Налаштування
+      </a>
+      <a class="nav-link {% if '/admin/broadcast' in p %}active{% endif %}" href="/admin/broadcast">
+        <span class="nav-icon">📢</span> Розсилка
+      </a>
+      {% if request.session.get("is_superadmin") %}
       <a class="nav-link {% if '/admin/admin-users' in p %}active{% endif %}" href="/admin/admin-users">
         <span class="nav-icon">👥</span> Користувачі
       </a>
+      {% endif %}
     </nav>
 
     <div class="sidebar-footer">
       <a href="/admin/logout">↪️ Вийти</a>
     </div>
   </aside>
+  {% endif %}
 
   <!-- Main -->
   <div class="main-content">

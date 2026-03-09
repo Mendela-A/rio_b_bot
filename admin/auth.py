@@ -22,11 +22,14 @@ class MyAuthProvider(AuthProvider):
     ) -> Response:
         async with db.pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT password_hash FROM admin_users WHERE username = $1 AND is_active = TRUE",
+                "SELECT password_hash, is_superadmin FROM admin_users WHERE username = $1 AND is_active = TRUE",
                 username,
             )
         if row and pwd_ctx.verify(password, row["password_hash"]):
-            request.session.update({"username": username})
+            request.session.update({
+                "username": username,
+                "is_superadmin": bool(row["is_superadmin"]),
+            })
             return response
         raise LoginFailed("Невірний логін або пароль")
 
@@ -35,11 +38,16 @@ class MyAuthProvider(AuthProvider):
         if not username:
             return False
         async with db.pool.acquire() as conn:
-            exists = await conn.fetchval(
-                "SELECT 1 FROM admin_users WHERE username = $1 AND is_active = TRUE",
+            row = await conn.fetchrow(
+                "SELECT is_superadmin FROM admin_users WHERE username = $1 AND is_active = TRUE",
                 username,
             )
-        return bool(exists)
+        if not row:
+            return False
+        # Backfill is_superadmin into session if missing (e.g. after migration)
+        if "is_superadmin" not in request.session:
+            request.session["is_superadmin"] = bool(row["is_superadmin"])
+        return True
 
     def get_admin_config(self, request: Request) -> AdminConfig:
         return AdminConfig(app_title="РІО Адмін")

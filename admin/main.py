@@ -29,6 +29,8 @@ from views.services_editor import ServicesEditorView
 from views.blocked_dates import BlockedDatesView
 from views.settings import SettingsView
 from views.admin_users import AdminUsersView
+from views.broadcast import BroadcastView
+from views.change_password import ChangePasswordView
 
 load_dotenv()
 
@@ -82,7 +84,7 @@ app.mount(
 
 @app.get("/admin/export-db")
 async def export_db(request: Request):
-    if not request.session.get("username"):
+    if not request.session.get("is_superadmin"):
         return RedirectResponse("/admin/login")
 
     result = subprocess.run(
@@ -122,6 +124,8 @@ admin.add_view(InfoPageView())
 admin.add_view(SettingsView())
 admin.add_view(BlockedDatesView())
 admin.add_view(AdminUsersView())
+admin.add_view(BroadcastView())
+admin.add_view(ChangePasswordView())
 admin.mount_to(app)
 
 
@@ -147,6 +151,36 @@ async def upload_photo(request: Request, file: UploadFile = File(...)):
     img.save(str(filepath), "WEBP", quality=85)
 
     return JSONResponse({"url": f"/uploads/{filename}"})
+
+
+@app.post("/api/category/move")
+async def move_category(request: Request):
+    if not request.session.get("username"):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    data = await request.json()
+    cat_id = int(data["id"])
+    direction = data["direction"]
+
+    async with db.pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id FROM categories ORDER BY sort_order NULLS LAST, id"
+        )
+        ids = [r["id"] for r in rows]
+        idx = ids.index(cat_id)
+
+        if direction == "up" and idx == 0:
+            return JSONResponse({"ok": True})
+        if direction == "down" and idx == len(ids) - 1:
+            return JSONResponse({"ok": True})
+
+        swap_idx = idx - 1 if direction == "up" else idx + 1
+        async with conn.transaction():
+            for i, r in enumerate(rows):
+                await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", i + 1, r["id"])
+            await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", swap_idx + 1, cat_id)
+            await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", idx + 1, ids[swap_idx])
+
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/service/move")

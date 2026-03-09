@@ -53,6 +53,27 @@ async def get_info_page_by_id(pool: asyncpg.Pool, page_id: int) -> asyncpg.Recor
     )
 
 
+# --- Users ---
+
+async def upsert_user(pool: asyncpg.Pool, telegram_id: int, first_name: str | None, username: str | None) -> None:
+    await pool.execute(
+        """
+        INSERT INTO users (telegram_id, first_name, username, last_seen_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (telegram_id) DO UPDATE
+            SET first_name   = EXCLUDED.first_name,
+                username     = EXCLUDED.username,
+                last_seen_at = NOW()
+        """,
+        telegram_id, first_name, username,
+    )
+
+
+async def get_all_active_user_ids(pool: asyncpg.Pool) -> list[int]:
+    rows = await pool.fetch("SELECT telegram_id FROM users WHERE is_active = TRUE")
+    return [r["telegram_id"] for r in rows]
+
+
 # --- Blocked dates ---
 
 async def get_blocked_dates(pool: asyncpg.Pool) -> set:

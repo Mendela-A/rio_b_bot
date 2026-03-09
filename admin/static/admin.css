@@ -88,6 +88,16 @@ body {
   padding: 14px 12px 4px;
 }
 
+.nav-section {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 12px 16px 4px;
+  margin-top: 4px;
+}
+
 .nav-link {
   display: flex;
   align-items: center;
@@ -121,21 +131,27 @@ body {
 }
 
 .sidebar-footer {
-  padding: 14px 20px;
+  padding: 8px 12px 12px;
   border-top: 1px solid var(--border);
 }
 
 .sidebar-footer a {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: .9rem;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: color .12s;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 1rem;
+  transition: background .12s, color .12s;
 }
 
-.sidebar-footer a:hover { color: var(--danger); }
+.sidebar-footer a:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
 
 /* ---- Main content ---- */
 
@@ -399,6 +415,56 @@ body {
 
 .add-btn:hover { background: var(--primary-light); }
 .parent-chevron { color: #bbb; font-size: .73rem; margin-right: 2px; }
+
+/* ---- Section tabs (top-level: Бронювання / Заявки) ---- */
+
+.section-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+
+.section-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: .93rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .12s, border-color .12s;
+}
+
+.section-tab:hover {
+  color: var(--primary);
+}
+
+.section-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.section-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-size: .72rem;
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.section-tab.active .section-tab-count {
+  background: var(--primary-light);
+  color: var(--primary);
+}
 
 /* ---- Filter tabs ---- */
 

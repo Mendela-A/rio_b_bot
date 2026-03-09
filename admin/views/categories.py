@@ -35,7 +35,7 @@ class CategoryView(CustomView):
 
     async def _render_page(self, request: Request) -> Response:
         async with db.pool.acquire() as conn:
-            rows = await conn.fetch("SELECT id, name, type FROM categories ORDER BY id")
+            rows = await conn.fetch("SELECT id, name, type FROM categories ORDER BY sort_order NULLS LAST, id")
         categories = [dict(r) for r in rows]
         return _templates.TemplateResponse(
             "categories.html",

@@ -24,6 +24,8 @@ class AdminUsersView(CustomView):
         )
 
     async def render(self, request: Request, templates) -> Response:  # noqa: ARG002
+        if not request.session.get("is_superadmin"):
+            return RedirectResponse("/admin", status_code=303)
         if request.method == "POST":
             return await self._handle_post(request)
         return await self._render_page(request, error=None, success=None)

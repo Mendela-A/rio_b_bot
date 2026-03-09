@@ -29,13 +29,15 @@ async def ensure_default_admin() -> None:
     username = os.getenv("ADMIN_USER", "admin")
     password = os.getenv("ADMIN_PASSWORD", "admin")
     async with pool.acquire() as conn:
-        count = await conn.fetchval("SELECT COUNT(*) FROM admin_users")
-        if count == 0:
-            hashed = pwd_ctx.hash(password)
-            await conn.execute(
-                "INSERT INTO admin_users (username, password_hash) VALUES ($1, $2)",
-                username, hashed,
-            )
+        hashed = pwd_ctx.hash(password)
+        await conn.execute(
+            """
+            INSERT INTO admin_users (username, password_hash, is_superadmin)
+            VALUES ($1, $2, TRUE)
+            ON CONFLICT (username) DO UPDATE SET is_superadmin = TRUE
+            """,
+            username, hashed,
+        )
 
 
 async def close_pool() -> None:
