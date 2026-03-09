@@ -16,11 +16,15 @@ from aiogram.types import (
 from app import texts
 from app.config import load_config
 from app.database.queries import (
-    cart_get, cart_clear, create_booking, create_booking_items, get_user_bookings,
+    cart_get, cart_add, cart_clear, create_booking, create_booking_items, get_user_bookings,
     get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
-    get_booking_by_id, update_booking_status,
+    get_booking_by_id, update_booking_status, get_booking_items,
+    create_change_request, create_change_items, get_change_request, get_pending_change_for_booking,
+    update_change_request_status, apply_change_request,
 )
-from app.keyboards.booking_kb import cancel_kb, date_selection_kb, calendar_kb, confirm_booking_kb, cart_kb
+from app.keyboards.booking_kb import (
+    cancel_kb, date_selection_kb, calendar_kb, confirm_booking_kb, cart_kb, confirm_change_kb,
+)
 from app.keyboards.main_menu import main_menu_kb
 
 router = Router()
@@ -38,6 +42,12 @@ class BookingStates(StatesGroup):
     waiting_cancel_reason = State()
     quick_waiting_name = State()
     quick_waiting_phone = State()
+
+
+class ChangeStates(StatesGroup):
+    waiting_date = State()
+    waiting_children = State()
+    confirming = State()
 
 
 def _phone_kb() -> ReplyKeyboardMarkup:
@@ -590,11 +600,17 @@ def _cancel_reason_kb(booking_id: int) -> InlineKeyboardMarkup:
 def _my_bookings_kb(bookings: list) -> InlineKeyboardMarkup:
     rows = []
     for b in bookings:
-        if b["status"] == "new":
-            rows.append([InlineKeyboardButton(
-                text=f"❌ Скасувати #{b['id']}",
-                callback_data=f"booking:user_cancel:{b['id']}",
-            )])
+        if b["status"] != "cancelled":
+            row = [InlineKeyboardButton(
+                text=f"✏️ Змінити #{b['id']}",
+                callback_data=f"booking:change:{b['id']}",
+            )]
+            if b["status"] == "new":
+                row.append(InlineKeyboardButton(
+                    text=f"❌ Скасувати #{b['id']}",
+                    callback_data=f"booking:user_cancel:{b['id']}",
+                ))
+            rows.append(row)
     rows.append([InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -691,6 +707,324 @@ async def user_cancel_reason_text(message: Message, state: FSMContext, pool: asy
 
     bookings = await get_user_bookings(pool, message.from_user.id)
     await _edit(_my_bookings_text(bookings), _my_bookings_kb(bookings))
+
+
+# --- Booking change flow ---
+
+@router.callback_query(F.data.startswith("booking:change:"))
+async def change_booking_start(
+    callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool
+) -> None:
+    booking_id = int(callback.data.split(":")[2])
+    booking = await get_booking_by_id(pool, booking_id)
+
+    if not booking or booking["telegram_id"] != callback.from_user.id:
+        await callback.answer("Бронювання не знайдено", show_alert=True)
+        return
+    if booking["status"] == "cancelled":
+        await callback.answer("Скасоване бронювання не можна змінювати", show_alert=True)
+        return
+
+    pending = await get_pending_change_for_booking(pool, booking_id)
+    if pending:
+        await callback.answer("Вже є незавершений запит на зміну. Очікуйте відповіді адміністратора.", show_alert=True)
+        return
+
+    await cart_clear(pool, callback.from_user.id)
+    existing_items = await get_booking_items(pool, booking_id)
+    for item in existing_items:
+        for _ in range(item["quantity"]):
+            await cart_add(pool, callback.from_user.id, item["service_id"])
+
+    await state.set_state(ChangeStates.waiting_date)
+    await state.update_data(
+        booking_id=booking_id,
+        orig_date=booking["booking_date"].isoformat(),
+        orig_children=booking["children_count"],
+    )
+
+    days = int(await get_setting(pool, "booking_days_ahead", "14"))
+    blocked = await get_blocked_dates(pool)
+    blocked_weekdays = await get_blocked_weekdays(pool)
+    sent = await callback.message.edit_text(
+        f"✏️ <b>Зміна бронювання #{booking_id}</b>\n\nОберіть нову дату:",
+        reply_markup=date_selection_kb(days, blocked, blocked_weekdays, prefix="change"),
+    )
+    await state.update_data(bot_msg_id=sent.message_id)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "change:noop")
+async def change_noop(callback: CallbackQuery) -> None:
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("change:cal:"), ChangeStates.waiting_date)
+async def change_calendar_nav(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    parts = callback.data.split(":")
+    year, month = int(parts[2]), int(parts[3])
+    blocked = await get_blocked_dates(pool)
+    blocked_weekdays = await get_blocked_weekdays(pool)
+    await callback.message.edit_reply_markup(
+        reply_markup=calendar_kb(year, month, blocked, blocked_weekdays, prefix="change")
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("change:caldate:"), ChangeStates.waiting_date)
+async def change_caldate(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    raw = callback.data.split(":", 2)[2]
+    try:
+        parsed = dt_date.fromisoformat(raw)
+    except ValueError:
+        await callback.answer("Невірна дата", show_alert=True)
+        return
+
+    today = dt_date.today()
+    if parsed < today:
+        await callback.answer("Ця дата вже минула", show_alert=True)
+        return
+
+    blocked = await get_blocked_dates(pool)
+    blocked_wdays = await get_blocked_weekdays(pool)
+    if parsed in blocked or parsed.weekday() in blocked_wdays:
+        await callback.answer("Ця дата заблокована", show_alert=True)
+        return
+
+    await state.update_data(proposed_date=raw)
+    await _change_ask_children(callback, state)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("change:date:"), ChangeStates.waiting_date)
+async def change_date_selected(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    from datetime import timedelta
+    raw = callback.data.split(":", 2)[2]
+    try:
+        parsed = dt_date.fromisoformat(raw)
+    except ValueError:
+        await callback.answer("Невірна дата", show_alert=True)
+        return
+
+    today = dt_date.today()
+    days_ahead = int(await get_setting(pool, "booking_days_ahead", "14"))
+    if not (today <= parsed <= today + timedelta(days=days_ahead)):
+        await callback.answer("Ця дата недоступна", show_alert=True)
+        return
+
+    blocked = await get_blocked_dates(pool)
+    blocked_wdays = await get_blocked_weekdays(pool)
+    if parsed in blocked or parsed.weekday() in blocked_wdays:
+        await callback.answer("Ця дата заблокована", show_alert=True)
+        return
+
+    await state.update_data(proposed_date=raw)
+    await _change_ask_children(callback, state)
+    await callback.answer()
+
+
+async def _change_ask_children(callback: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    orig_children = data.get("orig_children", "?")
+    sent = await callback.message.edit_text(
+        f"👶 Скільки дітей буде? (Поточне: {orig_children})\n\nВведіть число:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="change:cancel")],
+        ]),
+    )
+    await state.update_data(bot_msg_id=sent.message_id)
+    await state.set_state(ChangeStates.waiting_children)
+
+
+@router.message(ChangeStates.waiting_children)
+async def change_children(message: Message, state: FSMContext, bot: Bot, pool: asyncpg.Pool) -> None:
+    text = (message.text or "").strip()
+    try:
+        count = int(text)
+        if count <= 0:
+            raise ValueError
+    except ValueError:
+        await message.delete()
+        err = await message.answer("⚠️ Введіть ціле число більше 0")
+        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        return
+
+    data = await state.get_data()
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    await message.delete()
+
+    await state.update_data(proposed_children=count)
+    cart_items = await cart_get(pool, message.from_user.id)
+    sent = await message.answer(
+        _change_confirm_text(data, count, cart_items),
+        reply_markup=confirm_change_kb(),
+    )
+    await state.update_data(bot_msg_id=sent.message_id)
+    await state.set_state(ChangeStates.confirming)
+
+
+def _change_confirm_text(data: dict, proposed_children: int, cart_items: list) -> str:
+    booking_id = data.get("booking_id")
+    orig_date = data.get("orig_date", "")
+    proposed_date = data.get("proposed_date", "")
+    orig_children = data.get("orig_children", "?")
+    lines = [
+        f"✏️ <b>Запит на зміну бронювання #{booking_id}</b>\n",
+        f"📆 Дата: {_fmt_date(orig_date)} → {_fmt_date(proposed_date)}",
+        f"👶 Дітей: {orig_children} → {proposed_children}",
+    ]
+    lines.extend(_services_lines(cart_items))
+    lines.append("\nНатисніть «Надіслати запит» для відправки адміністратору.")
+    return "\n".join(lines)
+
+
+@router.callback_query(F.data == "change:resume_confirm")
+async def change_resume_confirm(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    data = await state.get_data()
+    if not data.get("booking_id"):
+        await callback.message.edit_text("Сесія застаріла. Почніть знову.", reply_markup=main_menu_kb())
+        await state.clear()
+        await callback.answer()
+        return
+    proposed_children = data.get("proposed_children", data.get("orig_children", 1))
+    cart_items = await cart_get(pool, callback.from_user.id)
+    await callback.message.edit_text(
+        _change_confirm_text(data, proposed_children, cart_items),
+        reply_markup=confirm_change_kb(),
+    )
+    await state.set_state(ChangeStates.confirming)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "change:cancel")
+async def change_cancel(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    await cart_clear(pool, callback.from_user.id)
+    await state.clear()
+    await callback.message.edit_text("Зміну скасовано.", reply_markup=main_menu_kb())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "change:confirm")
+async def change_confirm(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool, bot: Bot) -> None:
+    await callback.answer()
+    data = await state.get_data()
+    booking_id = data.get("booking_id")
+    proposed_date_str = data.get("proposed_date")
+    proposed_children = data.get("proposed_children")
+
+    if not booking_id or not proposed_date_str or not proposed_children:
+        await callback.message.edit_text("Сесія застаріла. Почніть знову.", reply_markup=main_menu_kb())
+        await state.clear()
+        return
+
+    cart_items = await cart_get(pool, callback.from_user.id)
+    proposed_date = dt_date.fromisoformat(proposed_date_str)
+
+    request_id = await create_change_request(pool, booking_id, proposed_date, proposed_children)
+    await create_change_items(pool, request_id, cart_items)
+    await cart_clear(pool, callback.from_user.id)
+    await state.clear()
+
+    booking = await get_booking_by_id(pool, booking_id)
+    await _notify_admin_change_request(bot, request_id, booking, data, proposed_date_str, proposed_children, cart_items)
+
+    await callback.message.edit_text(
+        f"✅ Запит на зміну бронювання #{booking_id} надіслано!\nОчікуйте підтвердження адміністратора.",
+        reply_markup=main_menu_kb(),
+    )
+
+
+async def _notify_admin_change_request(
+    bot: Bot,
+    request_id: int,
+    booking: asyncpg.Record,
+    data: dict,
+    proposed_date_str: str,
+    proposed_children: int,
+    cart_items: list,
+) -> None:
+    if not _config.admin_chat_id:
+        return
+    booking_id = booking["id"]
+    orig_date_str = data.get("orig_date", "")
+    orig_children = data.get("orig_children", "?")
+    lines = [
+        f"✏️ Запит на зміну бронювання #{booking_id}",
+        f"👤 {booking['full_name']}",
+        f"📱 {booking['phone']}",
+        f"📆 Дата: {_fmt_date(orig_date_str)} → {_fmt_date(proposed_date_str)}",
+        f"👶 Дітей: {orig_children} → {proposed_children}",
+    ]
+    if cart_items:
+        lines.append("\nНові послуги:")
+        total = 0
+        for item in cart_items:
+            price, qty = item["price"], item["quantity"]
+            if price:
+                total += price * qty
+                lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
+            else:
+                lines.append(f"• {item['name']} × {qty}")
+        if total:
+            lines.append(f"\n💰 Разом: {total:.0f} грн")
+    else:
+        lines.append("\nПослуги не обрані")
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Прийняти", callback_data=f"adm:chg_ok:{request_id}"),
+        InlineKeyboardButton(text="❌ Відхилити", callback_data=f"adm:chg_no:{request_id}"),
+    ]])
+    try:
+        await bot.send_message(_config.admin_chat_id, "\n".join(lines), parse_mode=None, reply_markup=kb)
+    except Exception as e:
+        logger.error("Failed to notify admin about change request: %s", e)
+
+
+async def _notify_client_change_result(
+    bot: Bot, telegram_id: int, booking_id: int, proposed_date, approved: bool
+) -> None:
+    date_str = proposed_date.strftime("%d.%m.%Y") if hasattr(proposed_date, "strftime") else str(proposed_date)
+    if approved:
+        text = f"✅ Зміну бронювання #{booking_id} підтверджено!\nНова дата: {date_str} 🎉"
+    else:
+        text = f"❌ Зміну бронювання #{booking_id} відхилено.\nОригінальне бронювання залишається в силі."
+    try:
+        await bot.send_message(telegram_id, text)
+    except Exception as e:
+        logger.error("Failed to notify client %s about change result: %s", telegram_id, e)
+
+
+@router.callback_query(F.data.startswith("adm:chg_"))
+async def admin_change_action(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+    if callback.message.chat.id != _config.admin_chat_id:
+        await callback.answer()
+        return
+
+    parts = callback.data.split(":", 2)
+    action_str = parts[1]   # "chg_ok" or "chg_no"
+    request_id = int(parts[2])
+    approve = action_str == "chg_ok"
+
+    change_req = await get_change_request(pool, request_id)
+    if not change_req or change_req["status"] != "pending":
+        await callback.answer("Вже оброблено")
+        return
+
+    if approve:
+        await apply_change_request(pool, request_id)
+
+    new_status = "approved" if approve else "rejected"
+    await update_change_request_status(pool, request_id, new_status)
+
+    booking = await get_booking_by_id(pool, change_req["booking_id"])
+    await _notify_client_change_result(
+        callback.bot, booking["telegram_id"],
+        change_req["booking_id"], change_req["proposed_date"], approve,
+    )
+
+    label = "✅ Зміни прийнято" if approve else "❌ Зміни відхилено"
+    original_text = callback.message.text or ""
+    await callback.message.edit_text(f"{original_text}\n\n{label}", reply_markup=None)
+    await callback.answer(label)
 
 
 @router.callback_query(F.data.startswith("adm:"))

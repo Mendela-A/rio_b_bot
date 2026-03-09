@@ -21,6 +21,7 @@ def date_selection_kb(
     days: int = 14,
     blocked: set | None = None,
     blocked_weekdays: set | None = None,
+    prefix: str = "booking",
 ) -> InlineKeyboardMarkup:
     blocked = blocked or set()
     blocked_weekdays = blocked_weekdays or set()
@@ -32,14 +33,14 @@ def date_selection_kb(
         if d in blocked or d.weekday() in blocked_weekdays:
             continue
         label = f"{d.day} {MONTHS_UK[d.month - 1]}"
-        row.append(InlineKeyboardButton(text=label, callback_data=f"booking:date:{d.isoformat()}"))
+        row.append(InlineKeyboardButton(text=label, callback_data=f"{prefix}:date:{d.isoformat()}"))
         if len(row) == 3:
             buttons.append(row)
             row = []
     if row:
         buttons.append(row)
-    buttons.append([InlineKeyboardButton(text="📅 Інша дата", callback_data=f"booking:cal:{today.year}:{today.month}")])
-    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="booking:cancel")])
+    buttons.append([InlineKeyboardButton(text="📅 Інша дата", callback_data=f"{prefix}:cal:{today.year}:{today.month}")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data=f"{prefix}:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -48,6 +49,7 @@ def calendar_kb(
     month: int,
     blocked: set | None = None,
     blocked_weekdays: set | None = None,
+    prefix: str = "booking",
 ) -> InlineKeyboardMarkup:
     blocked = blocked or set()
     blocked_weekdays = blocked_weekdays or set()
@@ -55,7 +57,7 @@ def calendar_kb(
     max_year = today.year + (today.month + 5) // 12
     max_month = (today.month + 5) % 12 or 12
 
-    noop_btn = lambda t: InlineKeyboardButton(text=t, callback_data="booking:noop")
+    noop_btn = lambda t: InlineKeyboardButton(text=t, callback_data=f"{prefix}:noop")
 
     # Navigation row
     is_current = (year == today.year and month == today.month)
@@ -67,9 +69,9 @@ def calendar_kb(
     next_year = year + 1 if month == 12 else year
 
     nav = [
-        noop_btn("◀️") if is_current else InlineKeyboardButton(text="◀️", callback_data=f"booking:cal:{prev_year}:{prev_month}"),
+        noop_btn("◀️") if is_current else InlineKeyboardButton(text="◀️", callback_data=f"{prefix}:cal:{prev_year}:{prev_month}"),
         noop_btn(f"{MONTHS_UK_FULL[month - 1]} {year}"),
-        noop_btn("▶️") if is_max else InlineKeyboardButton(text="▶️", callback_data=f"booking:cal:{next_year}:{next_month}"),
+        noop_btn("▶️") if is_max else InlineKeyboardButton(text="▶️", callback_data=f"{prefix}:cal:{next_year}:{next_month}"),
     ]
     buttons = [nav]
 
@@ -87,14 +89,18 @@ def calendar_kb(
                 if d < today or d in blocked or d.weekday() in blocked_weekdays:
                     row.append(noop_btn(str(day)))
                 else:
-                    row.append(InlineKeyboardButton(text=str(day), callback_data=f"booking:caldate:{d.isoformat()}"))
+                    row.append(InlineKeyboardButton(text=str(day), callback_data=f"{prefix}:caldate:{d.isoformat()}"))
         buttons.append(row)
 
-    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="booking:cancel")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data=f"{prefix}:cancel")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def cart_kb(cart_items: list[asyncpg.Record], in_booking: bool = False) -> InlineKeyboardMarkup:
+def cart_kb(
+    cart_items: list[asyncpg.Record],
+    in_booking: bool = False,
+    in_change: bool = False,
+) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(
             text=f"🗑️ {item['name']}",
@@ -102,12 +108,24 @@ def cart_kb(cart_items: list[asyncpg.Record], in_booking: bool = False) -> Inlin
         )]
         for item in cart_items
     ]
-    if in_booking:
+    if in_change:
+        buttons.append([InlineKeyboardButton(text="↩️ Назад до змін", callback_data="change:resume_confirm")])
+    elif in_booking:
         buttons.append([InlineKeyboardButton(text="↩️ Назад до підтвердження", callback_data="booking:resume_confirm")])
     else:
         buttons.append([InlineKeyboardButton(text="📅 Оформити бронювання", callback_data="booking:start")])
     buttons.append([InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def confirm_change_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Надіслати запит", callback_data="change:confirm"),
+            InlineKeyboardButton(text="🛒 Змінити послуги", callback_data="cart:view"),
+        ],
+        [InlineKeyboardButton(text="❌ Скасувати", callback_data="change:cancel")],
+    ])
 
 
 def confirm_booking_kb() -> InlineKeyboardMarkup:

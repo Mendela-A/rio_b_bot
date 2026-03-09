@@ -17,7 +17,12 @@ _CATEGORY_LABELS = {
 }
 
 
-def _empty_cart_kb(in_booking: bool) -> InlineKeyboardMarkup:
+def _empty_cart_kb(in_booking: bool, in_change: bool = False) -> InlineKeyboardMarkup:
+    if in_change:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Назад до змін", callback_data="change:resume_confirm")],
+            [InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")],
+        ])
     if in_booking:
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="↩️ Назад до підтвердження", callback_data="booking:resume_confirm")],
@@ -63,14 +68,23 @@ async def cart_add_handler(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
     await edit_or_replace(callback, text, reply_markup=services_kb(items, category_type))
 
 
+def _state_flags(current_state: str | None) -> tuple[bool, bool]:
+    """Returns (in_booking, in_change) based on FSM state string."""
+    if current_state is None:
+        return False, False
+    in_change = "ChangeStates" in current_state
+    in_booking = not in_change and current_state is not None
+    return in_booking, in_change
+
+
 @router.callback_query(F.data == "cart:view")
 async def cart_view_handler(callback: CallbackQuery, pool: asyncpg.Pool, state: FSMContext) -> None:
-    in_booking = (await state.get_state()) is not None
+    in_booking, in_change = _state_flags(await state.get_state())
     items = await cart_get(pool, callback.from_user.id)
     if not items:
-        await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking))
+        await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking, in_change))
     else:
-        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking))
+        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking, in_change))
     await callback.answer()
 
 
@@ -79,10 +93,10 @@ async def cart_remove_handler(callback: CallbackQuery, pool: asyncpg.Pool, state
     service_id = int(callback.data.split(":")[2])
     await cart_remove(pool, callback.from_user.id, service_id)
 
-    in_booking = (await state.get_state()) is not None
+    in_booking, in_change = _state_flags(await state.get_state())
     items = await cart_get(pool, callback.from_user.id)
     if not items:
-        await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking))
+        await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking, in_change))
     else:
-        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking))
+        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking, in_change))
     await callback.answer("🗑️ Видалено")
