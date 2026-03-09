@@ -1,4 +1,4 @@
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     telegram_id  BIGINT PRIMARY KEY,
     first_name   TEXT,
     username     TEXT,
@@ -7,7 +7,7 @@ CREATE TABLE users (
     last_seen_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE broadcasts (
+CREATE TABLE IF NOT EXISTS broadcasts (
     id           SERIAL PRIMARY KEY,
     text         TEXT NOT NULL,
     photo_url    TEXT,
