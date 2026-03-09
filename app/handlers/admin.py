@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import date, timedelta
 
@@ -12,6 +13,18 @@ from app.database.queries import get_stats, get_bookings_in_range, get_bookings_
 router = Router()
 logger = logging.getLogger(__name__)
 _config = load_config()
+
+_AUTO_DELETE_DELAY = 60  # seconds
+
+
+async def _answer_autodelete(message: Message, text: str, delay: int = _AUTO_DELETE_DELAY, **kwargs) -> None:
+    sent = await message.answer(text, **kwargs)
+    await asyncio.sleep(delay)
+    try:
+        await sent.delete()
+        await message.delete()
+    except Exception:
+        pass
 
 _STATUS_LABELS = {
     "new": "🔵",
@@ -60,22 +73,23 @@ def _fmt_bookings_list(bookings, title: str) -> str:
 async def cmd_admin(message: Message, bot: Bot) -> None:
     if not await is_admin(bot, message.from_user.id):
         return
-    await message.answer(
+    asyncio.create_task(_answer_autodelete(
+        message,
         "⚙️ <b>Адмін-панель РІО</b>\n\n"
         "📊 Статистика — загальна статистика\n"
         "🔵 Непідтверджені — нові заявки\n"
         "📅 Бронювання сьогодні — хто прийде\n"
         "📅 Тиждень — наступні 7 днів\n"
         "📢 Розсилка — (в розробці)\n"
-        "⚙ Налаштування — (в розробці)"
-    )
+        "⚙ Налаштування — (в розробці)",
+    ))
 
 
 @router.message(F.text == "📊 Статистика")
 async def admin_stats(message: Message, bot: Bot, pool: asyncpg.Pool) -> None:
     if not await is_admin(bot, message.from_user.id):
         return
-    await message.answer(_fmt_stats(await get_stats(pool)))
+    asyncio.create_task(_answer_autodelete(message, _fmt_stats(await get_stats(pool))))
 
 
 @router.message(F.text == "🔵 Непідтверджені")
@@ -83,7 +97,7 @@ async def admin_bookings_new(message: Message, bot: Bot, pool: asyncpg.Pool) -> 
     if not await is_admin(bot, message.from_user.id):
         return
     bookings = await get_bookings_new(pool)
-    await message.answer(_fmt_bookings_list(bookings, "🔵 Непідтверджені бронювання"))
+    asyncio.create_task(_answer_autodelete(message, _fmt_bookings_list(bookings, "🔵 Непідтверджені бронювання")))
 
 
 @router.message(F.text == "📅 Бронювання сьогодні")
@@ -92,7 +106,7 @@ async def admin_bookings_today(message: Message, bot: Bot, pool: asyncpg.Pool) -
         return
     today = date.today()
     bookings = await get_bookings_in_range(pool, today, today)
-    await message.answer(_fmt_bookings_list(bookings, f"📅 Сьогодні, {today.strftime('%d.%m.%Y')}"))
+    asyncio.create_task(_answer_autodelete(message, _fmt_bookings_list(bookings, f"📅 Сьогодні, {today.strftime('%d.%m.%Y')}")))
 
 
 @router.message(F.text == "📅 Тиждень")
@@ -102,18 +116,18 @@ async def admin_bookings_week(message: Message, bot: Bot, pool: asyncpg.Pool) ->
     today = date.today()
     end = today + timedelta(days=6)
     bookings = await get_bookings_in_range(pool, today, end)
-    await message.answer(_fmt_bookings_list(bookings, f"📅 Тиждень: {today.strftime('%d.%m')}–{end.strftime('%d.%m.%Y')}"))
+    asyncio.create_task(_answer_autodelete(message, _fmt_bookings_list(bookings, f"📅 Тиждень: {today.strftime('%d.%m')}–{end.strftime('%d.%m.%Y')}")))
 
 
 @router.message(F.text == "📢 Розсилка")
 async def admin_broadcast(message: Message, bot: Bot) -> None:
     if not await is_admin(bot, message.from_user.id):
         return
-    await message.answer("📢 Розсилка — в розробці 🔧")
+    asyncio.create_task(_answer_autodelete(message, "📢 Розсилка — в розробці 🔧"))
 
 
 @router.message(F.text == "⚙ Налаштування")
 async def admin_settings(message: Message, bot: Bot) -> None:
     if not await is_admin(bot, message.from_user.id):
         return
-    await message.answer("⚙ Налаштування — в розробці 🔧")
+    asyncio.create_task(_answer_autodelete(message, "⚙ Налаштування — в розробці 🔧"))
