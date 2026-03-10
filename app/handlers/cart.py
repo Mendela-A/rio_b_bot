@@ -29,7 +29,7 @@ def _empty_cart_kb(in_booking: bool, in_change: bool = False) -> InlineKeyboardM
             [InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")],
         ])
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 Забронювати свято", callback_data="booking:start")],
+        [InlineKeyboardButton(text="🎉 Переглянути послуги", callback_data="services:venue")],
         [InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")],
     ])
 
