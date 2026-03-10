@@ -25,4 +25,8 @@ async def cmd_start(message: Message, bot: Bot, pool: asyncpg.Pool) -> None:
 
 @router.message(Command("menu"))
 async def cmd_menu(message: Message) -> None:
+    try:
+        await message.delete()
+    except Exception:
+        pass
     await message.answer(texts.get("menu.greeting"), reply_markup=main_menu_kb())
