@@ -26,18 +26,23 @@ def _chunks(lst, n):
         yield lst[i : i + n]
 
 
+_MENU_KEYBOARD = {
+    "inline_keyboard": [[{"text": "🏠 Головне меню", "callback_data": "main_menu"}]]
+}
+
+
 async def _send_one(client: httpx.AsyncClient, bot_token: str, uid: int, text: str, photo_url: str | None, base_url: str) -> None:
     if photo_url:
         full_url = base_url.rstrip("/") + photo_url if photo_url.startswith("/") else photo_url
         resp = await client.post(
             f"https://api.telegram.org/bot{bot_token}/sendPhoto",
-            json={"chat_id": uid, "photo": full_url, "caption": text, "parse_mode": "HTML"},
+            json={"chat_id": uid, "photo": full_url, "caption": text, "parse_mode": "HTML", "reply_markup": _MENU_KEYBOARD},
             timeout=10,
         )
     else:
         resp = await client.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
-            json={"chat_id": uid, "text": text, "parse_mode": "HTML"},
+            json={"chat_id": uid, "text": text, "parse_mode": "HTML", "reply_markup": _MENU_KEYBOARD},
             timeout=10,
         )
 
