@@ -1,6 +1,6 @@
 import asyncpg
 from aiogram import Router, Bot
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 
 from app import texts
@@ -20,4 +20,9 @@ async def cmd_start(message: Message, bot: Bot, pool: asyncpg.Pool) -> None:
             "👋 Вітаємо, адміне!",
             reply_markup=admin_kb(),
         )
+    await message.answer(texts.get("menu.greeting"), reply_markup=main_menu_kb())
+
+
+@router.message(Command("menu"))
+async def cmd_menu(message: Message) -> None:
     await message.answer(texts.get("menu.greeting"), reply_markup=main_menu_kb())
