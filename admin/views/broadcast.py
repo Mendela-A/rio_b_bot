@@ -118,7 +118,7 @@ class BroadcastView(CustomView):
                 "FROM broadcasts ORDER BY created_at DESC LIMIT 20"
             )
             users = await conn.fetch(
-                "SELECT telegram_id, first_name, username, last_seen_at "
+                "SELECT telegram_id, first_name, username, last_seen_at, created_at "
                 "FROM users WHERE is_active = TRUE "
                 "ORDER BY last_seen_at DESC"
             )
