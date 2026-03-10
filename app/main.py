@@ -5,7 +5,11 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, MenuButtonCommands
+from aiogram.types import (
+    BotCommand, MenuButtonCommands,
+    BotCommandScopeDefault, BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
+)
 
 from app import texts
 from app.config import load_config
@@ -45,10 +49,16 @@ async def main() -> None:
     dp.message.middleware(ThrottlingMiddleware())
     dp.callback_query.middleware(ThrottlingMiddleware())
 
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Запустити бота"),
-        BotCommand(command="menu",  description="Головне меню"),
-    ])
+    # Clear all scopes, then set fresh commands for private chats only
+    for scope in (BotCommandScopeDefault(), BotCommandScopeAllGroupChats(), BotCommandScopeAllPrivateChats()):
+        await bot.delete_my_commands(scope=scope)
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Запустити бота"),
+            BotCommand(command="menu",  description="Головне меню"),
+        ],
+        scope=BotCommandScopeAllPrivateChats(),
+    )
     await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
 
     dp.include_router(start.router)
