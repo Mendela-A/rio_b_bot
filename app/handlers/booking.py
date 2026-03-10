@@ -94,7 +94,11 @@ def _cart_text(cart_items: list) -> str:
 # --- Start FSM ---
 
 @router.callback_query(F.data == "booking:start")
-async def booking_start(callback: CallbackQuery, state: FSMContext) -> None:
+async def booking_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
+    cart_items = await cart_get(pool, callback.from_user.id)
+    if not cart_items:
+        await callback.answer("🛒 Спочатку додайте послуги до кошика", show_alert=True)
+        return
     await state.set_state(BookingStates.waiting_name)
     await callback.message.edit_text(texts.get("booking.ask_name"), reply_markup=cancel_kb())
     await state.update_data(bot_msg_id=callback.message.message_id)
