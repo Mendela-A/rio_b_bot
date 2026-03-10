@@ -5,7 +5,10 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommandScopeAllGroupChats, MenuButtonDefault
+from aiogram.types import (
+    MenuButtonDefault,
+    BotCommandScopeDefault, BotCommandScopeAllPrivateChats, BotCommandScopeAllGroupChats,
+)
 
 from app import texts
 from app.config import load_config
@@ -45,8 +48,9 @@ async def main() -> None:
     dp.message.middleware(ThrottlingMiddleware())
     dp.callback_query.middleware(ThrottlingMiddleware())
 
-    # Clear group commands and reset menu button to default
-    await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
+    # Clear all command scopes and reset menu button
+    for scope in (BotCommandScopeDefault(), BotCommandScopeAllPrivateChats(), BotCommandScopeAllGroupChats()):
+        await bot.delete_my_commands(scope=scope)
     await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
 
     dp.include_router(start.router)
