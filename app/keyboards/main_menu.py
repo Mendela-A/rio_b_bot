@@ -1,15 +1,16 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from app import texts
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎉 Додаткові послуги", callback_data="services:venue")],
-        [InlineKeyboardButton(text="🤹 Аніматор на виїзд", callback_data="services:offsite")],
-        [InlineKeyboardButton(text="🎭 Програми та аніматори", callback_data="services:program")],
+        [InlineKeyboardButton(text=texts.get("menu.btn_services_venue"),   callback_data="services:venue")],
+        [InlineKeyboardButton(text=texts.get("menu.btn_services_offsite"), callback_data="services:offsite")],
+        [InlineKeyboardButton(text=texts.get("menu.btn_services_program"), callback_data="services:program")],
         [
-            InlineKeyboardButton(text="📅 Бронювати", callback_data="booking:start"),
-            InlineKeyboardButton(text="🛒 Кошик", callback_data="cart:view"),
+            InlineKeyboardButton(text=texts.get("menu.btn_booking"), callback_data="booking:start"),
+            InlineKeyboardButton(text=texts.get("menu.btn_cart"),    callback_data="cart:view"),
         ],
-        [InlineKeyboardButton(text="📋 Мої бронювання", callback_data="booking:my")],
-        [InlineKeyboardButton(text="ℹ️ Інформація про заклад", callback_data="info:list")],
+        [InlineKeyboardButton(text=texts.get("menu.btn_my_bookings"), callback_data="booking:my")],
+        [InlineKeyboardButton(text=texts.get("menu.btn_info"),         callback_data="info:list")],
     ])

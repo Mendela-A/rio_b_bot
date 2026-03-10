@@ -10,6 +10,10 @@
   «Скинути» — поверне стандартний текст.
 </p>
 
+{% for group_label, items in groups.items() %}
+<h5 class="fw-bold mt-5 mb-3 pb-2 border-bottom" style="font-size:1rem">
+  {{ group_label }}
+</h5>
 {% for item in items %}
 <div class="card text-card mb-3">
   <div class="card-body">
@@ -40,6 +44,7 @@
     </form>
   </div>
 </div>
+{% endfor %}
 {% endfor %}
 
 {% endblock %}

@@ -31,19 +31,28 @@ class BotTextsView(CustomView):
                 "SELECT key, hint, default_value, value FROM bot_texts ORDER BY key"
             )
 
-        items = [
-            {
+        GROUP_LABELS = {
+            "menu":    "Головне меню",
+            "welcome": "Вітання",
+            "booking": "Бронювання",
+            "cart":    "Кошик",
+            "info":    "Інформація",
+        }
+
+        groups: dict[str, list] = {}
+        for r in rows:
+            prefix = r["key"].split(".")[0]
+            label = GROUP_LABELS.get(prefix, prefix)
+            groups.setdefault(label, []).append({
                 "key": r["key"],
                 "hint": r["hint"],
                 "value": r["value"] if r["value"] is not None else r["default_value"],
                 "is_custom": r["value"] is not None,
-            }
-            for r in rows
-        ]
+            })
 
         return _templates.TemplateResponse(
             "bot_texts.html",
-            {"request": request, "items": items},
+            {"request": request, "groups": groups},
         )
 
     # ------------------------------------------------------------------ #
