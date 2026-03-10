@@ -43,8 +43,8 @@ async def _reload() -> None:
     if _pool is None:
         return
     try:
-        rows = await _pool.fetch("SELECT key, value FROM bot_texts")
-        _cache.update({r["key"]: r["value"] for r in rows})
+        rows = await _pool.fetch("SELECT key, COALESCE(value, default_value) AS value FROM bot_texts")
+        _cache.update({r["key"]: r["value"] for r in rows if r["value"] is not None})
     except Exception as e:
         logger.error("Failed to reload bot_texts: %s", e)
 
