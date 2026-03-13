@@ -1,3 +1,5 @@
+import logging
+
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette_admin.views import CustomView
@@ -5,11 +7,13 @@ from starlette_admin.views import CustomView
 import db
 from shared import templates as _templates
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_NO_ANSWER_PHRASE = "немає цієї інформації"
 
 # USD за 1M токенів: (input, output)
 _MODEL_PRICES: dict[str, tuple[float, float]] = {
-    "claude-3-5-haiku-20241022":  (0.80,  4.00),
+    "claude-3-haiku-20240307":    (0.25,  1.25),
     "claude-haiku-4-5-20251001":  (0.80,  4.00),
     "claude-3-5-sonnet-20241022": (3.00, 15.00),
 }
@@ -38,8 +42,11 @@ class AiUsageView(CustomView):
             )
             settings = {r["key"]: r["value"] for r in settings_rows}
             no_answer_phrase = f"%{settings.get('ai_no_answer_phrase', _DEFAULT_NO_ANSWER_PHRASE)}%"
-            current_model = settings.get("ai_model", "claude-3-5-haiku-20241022")
-            prices = _MODEL_PRICES.get(current_model, _DEFAULT_PRICES)
+            current_model = settings.get("ai_model", "claude-haiku-4-5-20251001")
+            prices = _MODEL_PRICES.get(current_model)
+            if prices is None:
+                logger.warning("Unknown ai_model in settings: %r, using default prices", current_model)
+                prices = _DEFAULT_PRICES
 
             # --- Токени ---
             summary_row = await conn.fetchrow(

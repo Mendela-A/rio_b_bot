@@ -27,7 +27,7 @@
         <label class="form-label" for="ai_model"><strong>Модель</strong></label>
         <select class="form-select" name="ai_model" id="ai_model" style="max-width:400px">
           {% for value, label in models %}
-          <option value="{{ value }}" {% if values.get('ai_model', 'claude-3-5-haiku-20241022') == value %}selected{% endif %}>
+          <option value="{{ value }}" {% if values.get('ai_model', 'claude-haiku-4-5-20251001') == value %}selected{% endif %}>
             {{ label }}
           </option>
           {% endfor %}

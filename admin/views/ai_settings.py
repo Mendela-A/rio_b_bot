@@ -17,8 +17,8 @@ _AI_SETTINGS_KEYS = [
 ]
 
 _AI_MODELS = [
-    ("claude-3-5-haiku-20241022",  "Haiku 3.5  — швидкий, дешевий"),
-    ("claude-haiku-4-5-20251001",  "Haiku 4.5  — новіший"),
+    ("claude-3-haiku-20240307",    "Haiku 3    — найдешевший"),
+    ("claude-haiku-4-5-20251001",  "Haiku 4.5  — швидкий, дешевий"),
     ("claude-3-5-sonnet-20241022", "Sonnet 3.5 — розумніший, дорожчий"),
 ]
 

@@ -28,6 +28,19 @@ async def get_child_services(pool: asyncpg.Pool, parent_id: int) -> list[asyncpg
     )
 
 
+async def get_services_for_ai(pool: asyncpg.Pool) -> list[asyncpg.Record]:
+    return await pool.fetch(
+        """
+        SELECT s.id, s.name, s.price, s.description, s.parent_id,
+               c.name AS category_name
+        FROM services s
+        JOIN categories c ON s.category_id = c.id
+        WHERE s.is_active = true
+        ORDER BY c.id, s.parent_id NULLS FIRST, s.sort_order NULLS LAST, s.id
+        """
+    )
+
+
 async def get_service_by_id(pool: asyncpg.Pool, service_id: int) -> asyncpg.Record:
     return await pool.fetchrow(
         """

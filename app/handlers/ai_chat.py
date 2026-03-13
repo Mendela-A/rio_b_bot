@@ -11,6 +11,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 
 from app.database.queries import (
     get_ai_qa_pairs,
+    get_services_for_ai,
     get_ai_history,
     append_ai_history,
     clear_ai_history,
@@ -37,25 +38,68 @@ def _end_kb() -> InlineKeyboardMarkup:
     ])
 
 
+_DEFAULT_NO_ANSWER_PHRASE = "немає цієї інформації"
+
 _DEFAULT_SYSTEM_PROMPT = (
     "Ти — асистент {description}\n"
     "Правила (обов'язкові):\n"
     "1. Відповідай ВИКЛЮЧНО на основі бази знань нижче.\n"
-    "2. Якщо інформації немає — НЕ вигадуй. Скажи:\n"
-    "   «На жаль, у мене немає цієї інформації. Зверніться до адміністратора.»\n"
+    "2. Якщо інформації немає — НЕ вигадуй. Використай фразу: «{no_answer_phrase}»\n"
     "3. Не придумуй ціни, дати, умови яких немає в базі.\n"
     "4. Відповідай українською мовою, коротко і ввічливо."
 )
 
 
-def _build_system_prompt(template: str, description: str, qa_pairs: list) -> str:
-    # Fix #1: str.replace замість .format() — безпечно якщо адмін напише {щось} у промпті
+def _build_catalog(services: list) -> str:
+    children: dict[int, list] = {}
+
+    for s in services:
+        if s["parent_id"] is not None:
+            children.setdefault(s["parent_id"], []).append(s)
+
+    by_category: dict[str, list] = {}
+    for s in services:
+        if s["parent_id"] is not None:
+            continue
+        cat = s["category_name"]
+        if cat not in by_category:
+            by_category[cat] = []
+        kids = children.get(s["id"], [])
+        if kids:
+            by_category[cat].append(f'  {s["name"]}:')
+            for k in kids:
+                price = f'{int(k["price"])} грн' if k["price"] else "ціна за запитом"
+                desc = f' — {k["description"]}' if k["description"] else ""
+                by_category[cat].append(f'    • {k["name"]}: {price}{desc}')
+        else:
+            price = f'{int(s["price"])} грн' if s["price"] else "ціна за запитом"
+            desc = f' — {s["description"]}' if s["description"] else ""
+            by_category[cat].append(f'  • {s["name"]}: {price}{desc}')
+
+    lines = []
+    for cat, items in by_category.items():
+        lines.append(f"[{cat}]")
+        lines.extend(items)
+    return "\n".join(lines)
+
+
+def _build_system_prompt(template: str, description: str, qa_pairs: list, no_answer_phrase: str, services: list) -> str:
+    # str.replace замість .format() — безпечно якщо адмін напише {щось} у промпті
+    rules = template.replace("{description}", description).replace("{no_answer_phrase}", no_answer_phrase)
+    parts = [rules]
+
+    catalog = _build_catalog(services)
+    if catalog:
+        parts.append(f"=== КАТАЛОГ ПОСЛУГ ===\n{catalog}")
+
     qa_block = "\n".join(
         f"Питання: {p['question']}\nВідповідь: {p['answer']}"
         for p in qa_pairs
     )
-    rules = template.replace("{description}", description)
-    return f"{rules}\n\n=== БАЗА ЗНАНЬ ===\n{qa_block}"
+    if qa_block:
+        parts.append(f"=== БАЗА ЗНАНЬ (Q&A) ===\n{qa_block}")
+
+    return "\n\n".join(parts)
 
 
 @router.callback_query(F.data == "ai:start")
@@ -134,12 +178,14 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     max_tokens = int(await get_setting(pool, "ai_max_tokens", "1024"))
     description = await get_setting(pool, "ai_company_description", "розважальний заклад")
     prompt_template = await get_setting(pool, "ai_system_prompt", _DEFAULT_SYSTEM_PROMPT)
-    model = await get_setting(pool, "ai_model", "claude-3-5-haiku-20241022")
+    model = await get_setting(pool, "ai_model", "claude-haiku-4-5-20251001")
+    no_answer_phrase = await get_setting(pool, "ai_no_answer_phrase", _DEFAULT_NO_ANSWER_PHRASE)
 
     history = await get_ai_history(pool, user_id, limit=history_limit)
     qa_pairs = await get_ai_qa_pairs(pool)
+    services = await get_services_for_ai(pool)
 
-    system_prompt = _build_system_prompt(prompt_template, description, qa_pairs)
+    system_prompt = _build_system_prompt(prompt_template, description, qa_pairs, no_answer_phrase, services)
     messages = [{"role": r["role"], "content": r["content"]} for r in history]
     messages.append({"role": "user", "content": user_text})
 
