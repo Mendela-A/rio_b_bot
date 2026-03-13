@@ -34,6 +34,9 @@ from views.settings import SettingsView
 from views.admin_users import AdminUsersView
 from views.broadcast import BroadcastView
 from views.change_password import ChangePasswordView
+from views.ai_qa import AiQaView
+from views.ai_settings import AiSettingsView
+from views.ai_usage import AiUsageView
 
 load_dotenv()
 
@@ -160,6 +163,9 @@ admin.add_view(BlockedDatesView())
 admin.add_view(AdminUsersView())
 admin.add_view(BroadcastView())
 admin.add_view(ChangePasswordView())
+admin.add_view(AiQaView())
+admin.add_view(AiSettingsView())
+admin.add_view(AiUsageView())
 admin.mount_to(app)
 
 

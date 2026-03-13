@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}База знань ШІ — РІО{% endblock %}
+{% block page_title %}🤖 База знань{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" onclick="showAddForm('')">+ Додати питання</button>
+{% endblock %}
+
+{% block content %}
+
+{% if saved %}
+<div class="alert alert-success py-2 mb-4" style="font-size:.9rem">✅ Збережено</div>
+{% endif %}
+{% if deleted %}
+<div class="alert alert-warning py-2 mb-4" style="font-size:.9rem">🗑️ Видалено</div>
+{% endif %}
+
+<!-- Add / Edit form (hidden by default) -->
+<div class="card mb-4" id="edit-form" style="display:none">
+  <div class="card-header">
+    <span id="form-title">Нове питання</span>
+  </div>
+  <form method="POST" action="/admin/ai-qa">
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="id" id="f-id">
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label">Питання</label>
+        <input type="text" class="form-control" name="question" id="f-question" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Відповідь</label>
+        <textarea class="form-control" name="answer" id="f-answer" rows="4" required></textarea>
+      </div>
+      <div class="row g-3">
+        <div class="col-auto">
+          <label class="form-label">Порядок</label>
+          <input type="number" class="form-control" name="sort_order" id="f-sort_order" value="{{ next_sort }}" style="width:90px">
+        </div>
+        <div class="col-auto d-flex align-items-end">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="is_active" id="f-is_active" checked>
+            <label class="form-check-label" for="f-is_active">Активне</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-transparent border-top d-flex gap-2" style="padding:12px 16px">
+      <button type="submit" class="btn btn-primary">Зберегти</button>
+      <button type="button" class="btn btn-outline-secondary" onclick="hideForm()">Скасувати</button>
+    </div>
+  </form>
+</div>
+
+<!-- Q&A list -->
+<div class="card">
+  <div class="card-header">Питання та відповіді ({{ pairs|length }})</div>
+  {% if pairs %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Питання</th>
+          <th>Відповідь</th>
+          <th style="width:80px">Статус</th>
+          <th style="width:120px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in pairs %}
+        <tr>
+          <td class="text-muted">{{ p.sort_order }}</td>
+          <td>{{ p.question }}</td>
+          <td style="max-width:300px;white-space:pre-wrap">{{ p.answer[:120] }}{% if p.answer|length > 120 %}…{% endif %}</td>
+          <td>
+            {% if p.is_active %}
+            <span class="badge bg-success">Активне</span>
+            {% else %}
+            <span class="badge bg-secondary">Вимкнено</span>
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary me-1 edit-btn"
+              data-id="{{ p.id }}"
+              data-question="{{ p.question }}"
+              data-answer="{{ p.answer }}"
+              data-sort="{{ p.sort_order }}"
+              data-active="{{ p.is_active }}">
+              ✏️
+            </button>
+            <form method="POST" action="/admin/ai-qa" style="display:inline"
+                  onsubmit="return confirm('Видалити це питання?')">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="id" value="{{ p.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-muted">База знань порожня. Додайте перше питання.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const nextSort = {{ next_sort }};
+
+document.querySelectorAll('.edit-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.getElementById('form-title').textContent = 'Редагувати питання';
+    document.getElementById('f-id').value = this.dataset.id;
+    document.getElementById('f-question').value = this.dataset.question;
+    document.getElementById('f-answer').value = this.dataset.answer;
+    document.getElementById('f-sort_order').value = this.dataset.sort;
+    document.getElementById('f-is_active').checked = this.dataset.active === 'True';
+    document.getElementById('edit-form').style.display = '';
+    document.getElementById('f-question').focus();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  });
+});
+
+function showAddForm(prefill) {
+  document.getElementById('form-title').textContent = 'Нове питання';
+  document.getElementById('f-id').value = '';
+  document.getElementById('f-question').value = prefill || '';
+  document.getElementById('f-answer').value = '';
+  document.getElementById('f-sort_order').value = nextSort;
+  document.getElementById('f-is_active').checked = true;
+  document.getElementById('edit-form').style.display = '';
+  document.getElementById('f-question').focus();
+}
+
+// Автовідкриття форми якщо є ?prefill= у URL
+const urlParams = new URLSearchParams(window.location.search);
+const prefillQ = urlParams.get('prefill');
+if (prefillQ) showAddForm(prefillQ);
+
+function hideForm() {
+  document.getElementById('edit-form').style.display = 'none';
+}
+</script>
+{% endblock %}

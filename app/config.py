@@ -16,6 +16,7 @@ class Config:
     admin_chat_id: int
     webhook_url: str | None
     webhook_secret: str | None
+    anthropic_api_key: str | None
 
 
 def load_config() -> Config:
@@ -35,4 +36,5 @@ def load_config() -> Config:
         admin_chat_id=int(os.getenv("ADMIN_CHAT_ID") or "0"),
         webhook_url=os.getenv("WEBHOOK_URL") or None,
         webhook_secret=os.getenv("WEBHOOK_SECRET") or None,
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
     )

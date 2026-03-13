@@ -368,6 +368,69 @@ async def get_bookings_in_range(
     """, date_from, date_to)
 
 
+# --- AI Q&A ---
+
+async def get_ai_qa_pairs(pool: asyncpg.Pool) -> list[asyncpg.Record]:
+    return await pool.fetch(
+        "SELECT question, answer FROM ai_qa_pairs WHERE is_active=TRUE ORDER BY sort_order, id"
+    )
+
+
+# --- AI History ---
+
+async def get_ai_history(pool: asyncpg.Pool, telegram_id: int, limit: int = 20) -> list[asyncpg.Record]:
+    return await pool.fetch(
+        "SELECT role, content FROM ("
+        "  SELECT role, content, created_at FROM ai_chat_history"
+        "  WHERE telegram_id=$1 ORDER BY created_at DESC LIMIT $2"
+        ") t ORDER BY created_at",
+        telegram_id, limit,
+    )
+
+
+async def append_ai_history(pool: asyncpg.Pool, telegram_id: int, role: str, content: str) -> None:
+    await pool.execute(
+        "INSERT INTO ai_chat_history (telegram_id, role, content) VALUES ($1,$2,$3)",
+        telegram_id, role, content,
+    )
+
+
+async def clear_ai_history(pool: asyncpg.Pool, telegram_id: int) -> None:
+    await pool.execute("DELETE FROM ai_chat_history WHERE telegram_id=$1", telegram_id)
+
+
+async def trim_ai_history(pool: asyncpg.Pool, telegram_id: int, limit: int) -> None:
+    """Видаляє старі повідомлення, залишаючи тільки `limit` останніх."""
+    await pool.execute(
+        "DELETE FROM ai_chat_history WHERE telegram_id=$1 AND id NOT IN ("
+        "  SELECT id FROM ai_chat_history WHERE telegram_id=$1"
+        "  ORDER BY created_at DESC LIMIT $2"
+        ")",
+        telegram_id, limit,
+    )
+
+
+# --- AI Usage ---
+
+async def log_ai_usage(pool: asyncpg.Pool, telegram_id: int, input_tokens: int, output_tokens: int) -> None:
+    await pool.execute(
+        "INSERT INTO ai_usage_log (telegram_id, input_tokens, output_tokens) VALUES ($1,$2,$3)",
+        telegram_id, input_tokens, output_tokens,
+    )
+
+
+async def get_ai_usage_stats(pool: asyncpg.Pool) -> dict:
+    row = await pool.fetchrow(
+        "SELECT SUM(input_tokens) AS total_in, SUM(output_tokens) AS total_out, "
+        "COUNT(*) AS total_requests FROM ai_usage_log"
+    )
+    daily = await pool.fetch(
+        "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out "
+        "FROM ai_usage_log GROUP BY day ORDER BY day DESC LIMIT 14"
+    )
+    return {"summary": dict(row), "daily": [dict(r) for r in daily]}
+
+
 async def get_bookings_new(pool: asyncpg.Pool) -> list[asyncpg.Record]:
     return await pool.fetch("""
         SELECT b.id, b.full_name, b.phone, b.children_count, b.booking_date, b.status, b.telegram_id,

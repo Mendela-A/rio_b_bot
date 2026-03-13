@@ -13,4 +13,5 @@ def main_menu_kb() -> InlineKeyboardMarkup:
         ],
         [InlineKeyboardButton(text=texts.get("menu.btn_my_bookings"), callback_data="booking:my")],
         [InlineKeyboardButton(text=texts.get("menu.btn_info"),         callback_data="info:list")],
+        [InlineKeyboardButton(text=texts.get("menu.btn_ai_chat"),      callback_data="ai:start")],
     ])

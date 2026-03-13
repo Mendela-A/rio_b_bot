@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Аналітика ШІ — РІО{% endblock %}
+{% block page_title %}📊 Аналітика асистента{% endblock %}
+
+{% block content %}
+
+<!-- Зведення -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">{{ total_requests }}</div>
+        <div class="text-muted small">Всього запитів</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">{{ "{:,}".format(total_in) }}</div>
+        <div class="text-muted small">Вхідні токени</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">{{ "{:,}".format(total_out) }}</div>
+        <div class="text-muted small">Вихідні токени</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">${{ "%.4f"|format(total_cost) }}</div>
+        <div class="text-muted small">Оцінка вартості (USD)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Вкладки -->
+<ul class="nav nav-tabs mb-3" id="aiTabs">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-tokens">📈 Токени</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-top">🔥 Топ запитань</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-unanswered">
+      ❓ Без відповіді
+      {% if unanswered %}<span class="badge bg-warning text-dark ms-1">{{ unanswered|length }}</span>{% endif %}
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- Вкладка 1: Токени -->
+  <div class="tab-pane fade show active" id="tab-tokens">
+    <div class="card mb-3">
+      <div class="card-body small text-muted">
+        Модель: <strong>{{ current_model }}</strong> &nbsp;·&nbsp;
+        Вхідні: ${{ price_in }} / 1M &nbsp;·&nbsp; Вихідні: ${{ price_out }} / 1M
+        &nbsp;·&nbsp;
+        <a href="https://console.anthropic.com" target="_blank" rel="noopener">Перевірити баланс →</a>
+      </div>
+    </div>
+
+    {% if daily %}
+    <div class="card">
+      <div class="card-header">Статистика за 14 днів</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Дата</th>
+              <th>Вхідні</th>
+              <th>Вихідні</th>
+              <th>Всього</th>
+              <th>Вартість (USD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in daily %}
+            <tr>
+              <td>{{ row.day }}</td>
+              <td>{{ "{:,}".format(row.inp) }}</td>
+              <td>{{ "{:,}".format(row.out) }}</td>
+              <td>{{ "{:,}".format(row.total_tokens) }}</td>
+              <td>${{ "%.4f"|format(row.cost) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-muted">Даних ще немає.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Вкладка 2: Топ запитань -->
+  <div class="tab-pane fade" id="tab-top">
+    {% if top_questions %}
+    <div class="card">
+      <div class="card-header">Найчастіші запитання (топ 30)</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width:60px">#</th>
+              <th>Запитання</th>
+              <th style="width:80px">Разів</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for q in top_questions %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td>{{ q.content }}</td>
+              <td><span class="badge bg-primary">{{ q.cnt }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-muted">Запитань ще немає.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Вкладка 3: Без відповіді -->
+  <div class="tab-pane fade" id="tab-unanswered">
+    {% if unanswered %}
+    <div class="alert alert-warning py-2 mb-3" style="font-size:.9rem">
+      💡 Ці запитання варто додати до <a href="/admin/ai-qa">бази знань</a>
+    </div>
+    <div class="card">
+      <div class="card-header">Запитання без відповіді ({{ unanswered|length }})</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Запитання</th>
+              <th style="width:160px">Остання спроба</th>
+              <th style="width:100px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for q in unanswered %}
+            <tr>
+              <td>{{ q.question }}</td>
+              <td class="text-muted small">{{ q.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-success add-q-btn"
+                        data-q="{{ q.question }}">+ Додати</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-muted">Чудово — всі запитання мали відповідь у базі знань.</div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.add-q-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const q = encodeURIComponent(this.dataset.q);
+    window.open('/admin/ai-qa?prefill=' + q, '_blank');
+  });
+});
+</script>
+{% endblock %}

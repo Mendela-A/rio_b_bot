@@ -13,7 +13,7 @@ from aiogram.types import (
 from app import texts
 from app.config import load_config
 from app.database.connection import create_pool, close_pool
-from app.handlers import start, booking, cart, services, info, common, admin
+from app.handlers import start, booking, cart, services, info, common, admin, ai_chat
 from app.middleware.throttling import ThrottlingMiddleware
 
 if os.getenv("LOG_FORMAT", "text") == "json":
@@ -53,12 +53,16 @@ async def main() -> None:
         await bot.delete_my_commands(scope=scope)
     await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
 
+    if not config.anthropic_api_key:
+        logger.warning("ANTHROPIC_API_KEY is not set — AI assistant will not work")
+
     dp.include_router(start.router)
     dp.include_router(admin.router)
     dp.include_router(booking.router)
     dp.include_router(cart.router)
     dp.include_router(services.router)
     dp.include_router(info.router)
+    dp.include_router(ai_chat.router)
     dp.include_router(common.router)
 
     WEBHOOK_PATH = "/webhook"
