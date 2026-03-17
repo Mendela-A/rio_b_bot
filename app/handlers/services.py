@@ -52,7 +52,10 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
         text = f"<b>{service['name']}</b>{price_line}{description}"
         file_path = "/app" + service['photo_url'] if service['photo_url'] else None
         if file_path and os.path.exists(file_path):
-            await callback.message.delete()
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
             await callback.message.answer_photo(
                 FSInputFile(file_path),
                 caption=text,
