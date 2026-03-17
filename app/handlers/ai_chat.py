@@ -196,7 +196,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     try:
         client = anthropic.AsyncAnthropic(api_key=api_key)
         t0 = time.monotonic()
-        response = await client.beta.prompt_caching.messages.create(
+        response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
             system=[{
@@ -205,7 +205,6 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=messages,
-            betas=["prompt-caching-2024-07-31"],
         )
         response_ms = int((time.monotonic() - t0) * 1000)
         reply_text = response.content[0].text
