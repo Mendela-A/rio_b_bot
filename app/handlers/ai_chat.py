@@ -18,6 +18,7 @@ from app.database.queries import (
     trim_ai_history,
     log_ai_usage,
     get_setting,
+    get_ai_history_last_age_hours,
 )
 from app import texts
 from app.keyboards.main_menu import main_menu_kb
@@ -115,6 +116,12 @@ async def start_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncp
         await callback.answer("Асистент тимчасово недоступний.", show_alert=True)
         return
 
+    user_id = callback.from_user.id
+    ttl_hours = int(await get_setting(pool, "ai_history_ttl_hours", "24"))
+    age = await get_ai_history_last_age_hours(pool, user_id)
+    if age is None or age > ttl_hours:
+        await clear_ai_history(pool, user_id)
+
     welcome = await get_setting(pool, "ai_welcome_message", "Привіт! Напишіть ваше запитання.")
     await state.set_state(AIChatStates.chatting)
     await state.update_data(bot_msg_id=callback.message.message_id)
@@ -123,11 +130,8 @@ async def start_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncp
 
 
 @router.callback_query(F.data == "ai:end")
-async def end_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
-    user_id = callback.from_user.id
+async def end_ai_chat(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    await clear_ai_history(pool, user_id)
-
     await callback.message.edit_text(texts.get("menu.greeting"), reply_markup=main_menu_kb())
     await callback.answer()
 

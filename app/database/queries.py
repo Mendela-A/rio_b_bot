@@ -412,6 +412,16 @@ async def clear_ai_history(pool: asyncpg.Pool, telegram_id: int) -> None:
     await pool.execute("DELETE FROM ai_chat_history WHERE telegram_id=$1", telegram_id)
 
 
+async def get_ai_history_last_age_hours(pool: asyncpg.Pool, telegram_id: int) -> float | None:
+    """Повертає вік останнього повідомлення в годинах, або None якщо історії нема."""
+    val = await pool.fetchval(
+        "SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 3600"
+        " FROM ai_chat_history WHERE telegram_id=$1",
+        telegram_id,
+    )
+    return float(val) if val is not None else None
+
+
 async def trim_ai_history(pool: asyncpg.Pool, telegram_id: int, limit: int) -> None:
     """Видаляє старі повідомлення, залишаючи тільки `limit` останніх."""
     await pool.execute(
