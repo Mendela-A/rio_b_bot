@@ -21,6 +21,9 @@ async def show_info_list(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
 async def show_info_page(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
     page_id = int(callback.data.split(":")[2])
     page = await get_info_page_by_id(pool, page_id)
+    if not page:
+        await callback.answer("Розділ не знайдено", show_alert=True)
+        return
     await callback.message.edit_text(
         f"<b>{page['title']}</b>\n\n{page['content']}",
         reply_markup=info_page_kb(),

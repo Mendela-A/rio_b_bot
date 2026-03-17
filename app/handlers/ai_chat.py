@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -25,6 +26,16 @@ from app.keyboards.main_menu import main_menu_kb
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+_MSG_TTL = 5.0
+
+
+async def _delete_after(message, delay: float = _MSG_TTL) -> None:
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception:
+        pass
 
 AI_COOLDOWN_SECONDS = 5
 
@@ -150,18 +161,12 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     now = time.monotonic()
     if now - last_request_at < AI_COOLDOWN_SECONDS:
         wait = int(AI_COOLDOWN_SECONDS - (now - last_request_at)) + 1
-        try:
-            await message.delete()
-        except Exception:
-            pass
+        asyncio.create_task(_delete_after(message))
         await _update_or_send(bot, message.chat.id, state,
                               f"⏳ Зачекайте {wait} сек. перед наступним запитанням.")
         return
 
-    try:
-        await message.delete()
-    except Exception:
-        pass
+    asyncio.create_task(_delete_after(message))
 
     await bot.send_chat_action(message.chat.id, "typing")
 

@@ -107,14 +107,14 @@ async def booking_start(callback: CallbackQuery, state: FSMContext) -> None:
 async def booking_name(message: Message, state: FSMContext, bot: Bot) -> None:
     name = message.text.strip() if message.text else ""
     if len(name) < 2:
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
         asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(full_name=name)
     await state.set_state(BookingStates.waiting_phone)
@@ -134,7 +134,7 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot) -> None:
     # Cancel via reply keyboard
     if message.text == "❌ Скасувати":
         await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         await state.clear()
         msg = await message.answer("Бронювання скасовано.", reply_markup=ReplyKeyboardRemove())
         asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id))
@@ -149,7 +149,7 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot) -> None:
     elif message.text:
         phone = message.text.strip()
         if not re.match(r'^[\d\s\+\-\(\)]{10,}$', phone):
-            await message.delete()
+            asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
             err = await message.answer(
                 "⚠️ Невірний формат. Введіть телефон або натисніть кнопку нижче:",
                 reply_markup=_phone_kb(),
@@ -157,11 +157,11 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot) -> None:
             asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
             return
     else:
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         return
 
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(phone=phone)
     await state.set_state(BookingStates.waiting_children)
@@ -179,14 +179,14 @@ async def booking_children(message: Message, state: FSMContext, bot: Bot, pool: 
         if count <= 0:
             raise ValueError
     except ValueError:
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ціле число більше 0")
         asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(children_count=count)
     await state.set_state(BookingStates.waiting_date)
@@ -391,14 +391,14 @@ async def quick_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.
 async def quick_name(message: Message, state: FSMContext, bot: Bot) -> None:
     name = (message.text or "").strip()
     if len(name) < 2:
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
         asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(full_name=name)
     await state.set_state(BookingStates.quick_waiting_phone)
@@ -412,7 +412,7 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
 
     if message.text == "❌ Скасувати":
         await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         await state.clear()
         msg = await message.answer("Скасовано.", reply_markup=ReplyKeyboardRemove())
         asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id))
@@ -426,7 +426,7 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     elif message.text:
         phone = message.text.strip()
         if not re.match(r'^[\d\s\+\-\(\)]{10,}$', phone):
-            await message.delete()
+            asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
             err = await message.answer(
                 "⚠️ Невірний формат. Введіть телефон або натисніть кнопку нижче:",
                 reply_markup=_phone_kb(),
@@ -434,11 +434,11 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
             asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
             return
     else:
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         return
 
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     full_name = data["full_name"]
     service_id = data["quick_service_id"]
@@ -683,7 +683,7 @@ async def user_cancel_reason_text(message: Message, state: FSMContext, pool: asy
     booking_id = data.get("pending_cancel_id")
     bot_msg_id = data.get("bot_msg_id")
     await state.clear()
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     if not reason:
         return
@@ -844,14 +844,14 @@ async def change_children(message: Message, state: FSMContext, bot: Bot, pool: a
         if count <= 0:
             raise ValueError
     except ValueError:
-        await message.delete()
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ціле число більше 0")
         asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    await message.delete()
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(proposed_children=count)
     cart_items = await cart_get(pool, message.from_user.id)
@@ -926,7 +926,8 @@ async def change_confirm(callback: CallbackQuery, state: FSMContext, pool: async
     await state.clear()
 
     booking = await get_booking_by_id(pool, booking_id)
-    await _notify_admin_change_request(bot, request_id, booking, data, proposed_date_str, proposed_children, cart_items)
+    if booking:
+        await _notify_admin_change_request(bot, request_id, booking, data, proposed_date_str, proposed_children, cart_items)
 
     await callback.message.edit_text(
         f"✅ Запит на зміну бронювання #{booking_id} надіслано!\nОчікуйте підтвердження адміністратора.",
@@ -1016,10 +1017,11 @@ async def admin_change_action(callback: CallbackQuery, pool: asyncpg.Pool) -> No
     await update_change_request_status(pool, request_id, new_status)
 
     booking = await get_booking_by_id(pool, change_req["booking_id"])
-    await _notify_client_change_result(
-        callback.bot, booking["telegram_id"],
-        change_req["booking_id"], change_req["proposed_date"], approve,
-    )
+    if booking:
+        await _notify_client_change_result(
+            callback.bot, booking["telegram_id"],
+            change_req["booking_id"], change_req["proposed_date"], approve,
+        )
 
     label = "✅ Зміни прийнято" if approve else "❌ Зміни відхилено"
     original_text = callback.message.text or ""

@@ -35,6 +35,9 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
     service_id = int(parts[2])
 
     service = await get_service_by_id(pool, service_id)
+    if not service:
+        await callback.answer("Послугу не знайдено", show_alert=True)
+        return
     children = await get_child_services(pool, service_id)
 
     if children:
