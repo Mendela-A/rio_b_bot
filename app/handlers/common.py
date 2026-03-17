@@ -18,6 +18,10 @@ async def go_main_menu(callback: CallbackQuery, bot: Bot, pool: asyncpg.Pool) ->
             await bot.delete_message(callback.message.chat.id, old_msg_id)
         except Exception:
             pass
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         sent = await callback.message.answer(
             texts.get("menu.greeting"), reply_markup=main_menu_kb()
         )

@@ -55,7 +55,10 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
             try:
                 await callback.message.delete()
             except Exception:
-                pass
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                except Exception:
+                    pass
             await callback.message.answer_photo(
                 FSInputFile(file_path),
                 caption=text,
