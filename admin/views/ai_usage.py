@@ -51,10 +51,13 @@ class AiUsageView(CustomView):
             # --- Токени ---
             summary_row = await conn.fetchrow(
                 "SELECT SUM(input_tokens) AS total_in, SUM(output_tokens) AS total_out, "
-                "COUNT(*) AS total_requests FROM ai_usage_log"
+                "COUNT(*) AS total_requests, "
+                "SUM(cache_write_tokens) AS total_cache_write, SUM(cache_read_tokens) AS total_cache_read "
+                "FROM ai_usage_log"
             )
             daily_rows = await conn.fetch(
-                "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out "
+                "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out, "
+                "SUM(cache_write_tokens) AS cache_write, SUM(cache_read_tokens) AS cache_read "
                 "FROM ai_usage_log GROUP BY day ORDER BY day DESC LIMIT 14"
             )
 
@@ -95,16 +98,27 @@ class AiUsageView(CustomView):
         total_in = int(summary_row["total_in"] or 0)
         total_out = int(summary_row["total_out"] or 0)
         total_requests = int(summary_row["total_requests"] or 0)
+        total_cache_write = int(summary_row["total_cache_write"] or 0)
+        total_cache_read = int(summary_row["total_cache_read"] or 0)
         total_cost = _calc_cost(total_in, total_out, prices)
+
+        cache_total = total_cache_write + total_cache_read
+        cache_hit_rate = (total_cache_read / cache_total * 100) if cache_total > 0 else 0.0
+        # Cache read costs 10% of input price — 90% savings per cached token
+        cache_savings = total_cache_read * prices[0] * 0.9 / 1_000_000
 
         daily = []
         for r in daily_rows:
             inp = int(r["inp"] or 0)
             out = int(r["out"] or 0)
+            cw = int(r["cache_write"] or 0)
+            cr = int(r["cache_read"] or 0)
             daily.append({
                 "day": r["day"],
                 "inp": inp,
                 "out": out,
+                "cache_write": cw,
+                "cache_read": cr,
                 "total_tokens": inp + out,
                 "cost": _calc_cost(inp, out, prices),
             })
@@ -116,6 +130,10 @@ class AiUsageView(CustomView):
                 "total_in": total_in,
                 "total_out": total_out,
                 "total_requests": total_requests,
+                "total_cache_write": total_cache_write,
+                "total_cache_read": total_cache_read,
+                "cache_hit_rate": cache_hit_rate,
+                "cache_savings": cache_savings,
                 "total_cost": total_cost,
                 "daily": daily,
                 "top_questions": [dict(r) for r in top_questions],

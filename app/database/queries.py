@@ -425,20 +425,31 @@ async def trim_ai_history(pool: asyncpg.Pool, telegram_id: int, limit: int) -> N
 
 # --- AI Usage ---
 
-async def log_ai_usage(pool: asyncpg.Pool, telegram_id: int, input_tokens: int, output_tokens: int) -> None:
+async def log_ai_usage(
+    pool: asyncpg.Pool,
+    telegram_id: int,
+    input_tokens: int,
+    output_tokens: int,
+    cache_write_tokens: int = 0,
+    cache_read_tokens: int = 0,
+) -> None:
     await pool.execute(
-        "INSERT INTO ai_usage_log (telegram_id, input_tokens, output_tokens) VALUES ($1,$2,$3)",
-        telegram_id, input_tokens, output_tokens,
+        "INSERT INTO ai_usage_log (telegram_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens) "
+        "VALUES ($1,$2,$3,$4,$5)",
+        telegram_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
     )
 
 
 async def get_ai_usage_stats(pool: asyncpg.Pool) -> dict:
     row = await pool.fetchrow(
         "SELECT SUM(input_tokens) AS total_in, SUM(output_tokens) AS total_out, "
-        "COUNT(*) AS total_requests FROM ai_usage_log"
+        "COUNT(*) AS total_requests, "
+        "SUM(cache_write_tokens) AS total_cache_write, SUM(cache_read_tokens) AS total_cache_read "
+        "FROM ai_usage_log"
     )
     daily = await pool.fetch(
-        "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out "
+        "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out, "
+        "SUM(cache_write_tokens) AS cache_write, SUM(cache_read_tokens) AS cache_read "
         "FROM ai_usage_log GROUP BY day ORDER BY day DESC LIMIT 14"
     )
     return {"summary": dict(row), "daily": [dict(r) for r in daily]}

@@ -7,7 +7,7 @@
 
 <!-- Зведення -->
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
+  <div class="col-md-2">
     <div class="card text-center">
       <div class="card-body">
         <div style="font-size:1.8rem;font-weight:700">{{ total_requests }}</div>
@@ -15,7 +15,7 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <div class="card text-center">
       <div class="card-body">
         <div style="font-size:1.8rem;font-weight:700">{{ "{:,}".format(total_in) }}</div>
@@ -23,7 +23,7 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
     <div class="card text-center">
       <div class="card-body">
         <div style="font-size:1.8rem;font-weight:700">{{ "{:,}".format(total_out) }}</div>
@@ -31,7 +31,24 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-2">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">{{ "%.1f"|format(cache_hit_rate) }}%</div>
+        <div class="text-muted small">Cache hit rate</div>
+        <div class="text-muted" style="font-size:.75rem">read: {{ "{:,}".format(total_cache_read) }} / write: {{ "{:,}".format(total_cache_write) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">${{ "%.4f"|format(cache_savings) }}</div>
+        <div class="text-muted small">Економія (кеш)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
     <div class="card text-center">
       <div class="card-body">
         <div style="font-size:1.8rem;font-weight:700">${{ "%.4f"|format(total_cost) }}</div>
@@ -81,6 +98,8 @@
               <th>Вхідні</th>
               <th>Вихідні</th>
               <th>Всього</th>
+              <th>Cache write</th>
+              <th>Cache read</th>
               <th>Вартість (USD)</th>
             </tr>
           </thead>
@@ -91,6 +110,8 @@
               <td>{{ "{:,}".format(row.inp) }}</td>
               <td>{{ "{:,}".format(row.out) }}</td>
               <td>{{ "{:,}".format(row.total_tokens) }}</td>
+              <td class="text-muted">{{ "{:,}".format(row.cache_write) }}</td>
+              <td class="text-success">{{ "{:,}".format(row.cache_read) }}</td>
               <td>${{ "%.4f"|format(row.cost) }}</td>
             </tr>
             {% endfor %}

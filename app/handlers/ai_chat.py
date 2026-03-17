@@ -191,15 +191,22 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
 
     try:
         client = anthropic.AsyncAnthropic(api_key=api_key)
-        response = await client.messages.create(
+        response = await client.beta.prompt_caching.messages.create(
             model=model,
             max_tokens=max_tokens,
-            system=system_prompt,
+            system=[{
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }],
             messages=messages,
+            betas=["prompt-caching-2024-07-31"],
         )
         reply_text = response.content[0].text
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
+        cache_write = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+        cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
     except Exception as e:
         logger.error("Anthropic API error: %s", e)
         await _update_or_send(bot, message.chat.id, state,
@@ -209,7 +216,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     await append_ai_history(pool, user_id, "user", user_text)
     await append_ai_history(pool, user_id, "assistant", reply_text)
     await trim_ai_history(pool, user_id, history_limit)
-    await log_ai_usage(pool, user_id, input_tokens, output_tokens)
+    await log_ai_usage(pool, user_id, input_tokens, output_tokens, cache_write, cache_read)
     await state.update_data(last_request_at=time.monotonic())
 
     await _update_or_send(bot, message.chat.id, state, reply_text)
