@@ -16,20 +16,26 @@ CATEGORY_LABELS = {
 }
 
 
-@router.callback_query(F.data.startswith("services:"))
-async def show_services(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+async def _show_services_impl(callback: CallbackQuery, pool: asyncpg.Pool, from_booking: bool) -> None:
     category_type = callback.data.split(":")[1]
     services = await get_services_by_type(pool, category_type)
     label = CATEGORY_LABELS.get(category_type, "Послуги")
-
     text = f"{label}\n\nОберіть послугу:" if services else f"{label}\n\nПослуги тимчасово недоступні."
-
-    await edit_or_replace(callback, text, reply_markup=services_kb(services, category_type))
+    await edit_or_replace(callback, text, reply_markup=services_kb(services, category_type, from_booking))
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("service:"))
-async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+@router.callback_query(F.data.startswith("services:"))
+async def show_services(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+    await _show_services_impl(callback, pool, from_booking=False)
+
+
+@router.callback_query(F.data.startswith("services_b:"))
+async def show_services_booking(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+    await _show_services_impl(callback, pool, from_booking=True)
+
+
+async def _show_service_detail_impl(callback: CallbackQuery, pool: asyncpg.Pool, from_booking: bool) -> None:
     parts = callback.data.split(":")
     category_type = parts[1]
     service_id = int(parts[2])
@@ -44,7 +50,7 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
         await edit_or_replace(
             callback,
             f"<b>{service['name']}</b>\n\nОберіть варіант:",
-            reply_markup=subcategories_kb(children, category_type),
+            reply_markup=subcategories_kb(children, category_type, from_booking),
         )
     else:
         price_line = f"\n💰 Ціна: {service['price']:.0f} грн" if service['price'] else ""
@@ -62,10 +68,21 @@ async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> No
             await callback.message.answer_photo(
                 FSInputFile(file_path),
                 caption=text,
-                reply_markup=service_detail_kb(category_type, service_id),
+                reply_markup=service_detail_kb(category_type, service_id, from_booking),
                 parse_mode="HTML",
             )
         else:
-            await edit_or_replace(callback, text, reply_markup=service_detail_kb(category_type, service_id))
+            await edit_or_replace(callback, text, reply_markup=service_detail_kb(category_type, service_id, from_booking))
 
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("service:"))
+async def show_service_detail(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+    await _show_service_detail_impl(callback, pool, from_booking=False)
+
+
+@router.callback_query(F.data.startswith("service_b:"))
+async def show_service_detail_booking(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
+    await _show_service_detail_impl(callback, pool, from_booking=True)
+

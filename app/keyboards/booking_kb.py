@@ -111,6 +111,7 @@ def cart_kb(
     if in_change:
         buttons.append([InlineKeyboardButton(text="↩️ Назад до змін", callback_data="change:resume_confirm")])
     elif in_booking:
+        buttons.append([InlineKeyboardButton(text="➕ Додати послугу", callback_data="booking:add_service")])
         buttons.append([InlineKeyboardButton(text="↩️ Назад до підтвердження", callback_data="booking:resume_confirm")])
     else:
         buttons.append([InlineKeyboardButton(text="📅 Оформити бронювання", callback_data="booking:start")])
@@ -131,6 +132,16 @@ def confirm_change_kb() -> InlineKeyboardMarkup:
 def confirm_booking_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Підтвердити", callback_data="booking:confirm")],
+        [InlineKeyboardButton(text="➕ Додати послугу", callback_data="booking:add_service")],
         [InlineKeyboardButton(text="🛒 Змінити кошик", callback_data="booking:view_cart")],
         [InlineKeyboardButton(text="❌ Скасувати", callback_data="booking:cancel")],
+    ])
+
+
+def add_service_categories_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎉 Додаткові послуги", callback_data="services_b:venue")],
+        [InlineKeyboardButton(text="🤹 Аніматор на виїзд", callback_data="services_b:offsite")],
+        [InlineKeyboardButton(text="🎭 Програми та аніматори", callback_data="services_b:program")],
+        [InlineKeyboardButton(text="↩️ До підтвердження", callback_data="booking:resume_confirm")],
     ])

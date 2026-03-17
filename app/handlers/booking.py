@@ -24,6 +24,7 @@ from app.database.queries import (
 )
 from app.keyboards.booking_kb import (
     cancel_kb, date_selection_kb, calendar_kb, confirm_booking_kb, cart_kb, confirm_change_kb,
+    add_service_categories_kb,
 )
 from app.keyboards.main_menu import main_menu_kb
 
@@ -277,6 +278,15 @@ async def booking_noop(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+# --- Add service from booking confirmation ---
+
+@router.callback_query(F.data == "booking:add_service")
+async def booking_add_service(callback: CallbackQuery) -> None:
+    from app.handlers._utils import edit_or_replace
+    await edit_or_replace(callback, "Оберіть категорію послуг:", reply_markup=add_service_categories_kb())
+    await callback.answer()
+
+
 # --- View cart from booking confirmation ---
 
 @router.callback_query(F.data == "booking:view_cart")
@@ -286,6 +296,7 @@ async def booking_view_cart(callback: CallbackQuery, pool: asyncpg.Pool) -> None
         await callback.message.edit_text(
             "🛒 Кошик порожній.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Додати послугу", callback_data="booking:add_service")],
                 [InlineKeyboardButton(text="↩️ Назад до підтвердження", callback_data="booking:resume_confirm")],
                 [InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")],
             ]),
