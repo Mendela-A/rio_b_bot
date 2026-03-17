@@ -52,12 +52,15 @@ class AiUsageView(CustomView):
             summary_row = await conn.fetchrow(
                 "SELECT SUM(input_tokens) AS total_in, SUM(output_tokens) AS total_out, "
                 "COUNT(*) AS total_requests, "
-                "SUM(cache_write_tokens) AS total_cache_write, SUM(cache_read_tokens) AS total_cache_read "
+                "SUM(cache_write_tokens) AS total_cache_write, SUM(cache_read_tokens) AS total_cache_read, "
+                "COUNT(DISTINCT telegram_id) AS unique_users, "
+                "AVG(response_ms) AS avg_response_ms "
                 "FROM ai_usage_log"
             )
             daily_rows = await conn.fetch(
                 "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out, "
-                "SUM(cache_write_tokens) AS cache_write, SUM(cache_read_tokens) AS cache_read "
+                "SUM(cache_write_tokens) AS cache_write, SUM(cache_read_tokens) AS cache_read, "
+                "AVG(response_ms) AS avg_ms "
                 "FROM ai_usage_log GROUP BY day ORDER BY day DESC LIMIT 14"
             )
 
@@ -100,6 +103,8 @@ class AiUsageView(CustomView):
         total_requests = int(summary_row["total_requests"] or 0)
         total_cache_write = int(summary_row["total_cache_write"] or 0)
         total_cache_read = int(summary_row["total_cache_read"] or 0)
+        unique_users = int(summary_row["unique_users"] or 0)
+        avg_response_ms = int(summary_row["avg_response_ms"]) if summary_row["avg_response_ms"] is not None else None
         total_cost = _calc_cost(total_in, total_out, prices)
 
         cache_total = total_cache_write + total_cache_read
@@ -113,6 +118,7 @@ class AiUsageView(CustomView):
             out = int(r["out"] or 0)
             cw = int(r["cache_write"] or 0)
             cr = int(r["cache_read"] or 0)
+            avg_ms = int(r["avg_ms"]) if r["avg_ms"] is not None else None
             daily.append({
                 "day": r["day"],
                 "inp": inp,
@@ -121,6 +127,7 @@ class AiUsageView(CustomView):
                 "cache_read": cr,
                 "total_tokens": inp + out,
                 "cost": _calc_cost(inp, out, prices),
+                "avg_ms": avg_ms,
             })
 
         return _templates.TemplateResponse(
@@ -130,6 +137,8 @@ class AiUsageView(CustomView):
                 "total_in": total_in,
                 "total_out": total_out,
                 "total_requests": total_requests,
+                "unique_users": unique_users,
+                "avg_response_ms": avg_response_ms,
                 "total_cache_write": total_cache_write,
                 "total_cache_read": total_cache_read,
                 "cache_hit_rate": cache_hit_rate,

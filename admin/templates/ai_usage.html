@@ -18,6 +18,24 @@
   <div class="col-md-2">
     <div class="card text-center">
       <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">{{ unique_users }}</div>
+        <div class="text-muted small">Унікальних користувачів</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card text-center">
+      <div class="card-body">
+        <div style="font-size:1.8rem;font-weight:700">
+          {% if avg_response_ms is not none %}{{ avg_response_ms }} мс{% else %}— мс{% endif %}
+        </div>
+        <div class="text-muted small">Сер. час відповіді</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2">
+    <div class="card text-center">
+      <div class="card-body">
         <div style="font-size:1.8rem;font-weight:700">{{ "{:,}".format(total_in) }}</div>
         <div class="text-muted small">Вхідні токени</div>
       </div>
@@ -100,6 +118,7 @@
               <th>Всього</th>
               <th>Cache write</th>
               <th>Cache read</th>
+              <th>Відповідь, мс</th>
               <th>Вартість (USD)</th>
             </tr>
           </thead>
@@ -112,6 +131,7 @@
               <td>{{ "{:,}".format(row.total_tokens) }}</td>
               <td class="text-muted">{{ "{:,}".format(row.cache_write) }}</td>
               <td class="text-success">{{ "{:,}".format(row.cache_read) }}</td>
+              <td class="text-muted">{% if row.avg_ms is not none %}{{ row.avg_ms }}{% else %}—{% endif %}</td>
               <td>${{ "%.4f"|format(row.cost) }}</td>
             </tr>
             {% endfor %}

@@ -139,6 +139,28 @@ async def export_db(request: Request):
                 if photo.is_file() and photo.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
                     zf.write(photo, f"uploads/{photo.name}")
 
+        # --- Діагностичний звіт ---
+        async with db.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, name, photo_url FROM services WHERE photo_url IS NOT NULL AND photo_url != ''"
+            )
+
+        files_on_disk = sum(1 for f in UPLOADS_DIR.iterdir() if f.is_file()) if UPLOADS_DIR.exists() else 0
+        report_lines = [f"Дата бекапу: {ts}", f"Файлів у uploads: {files_on_disk}", ""]
+        missing = []
+        for row in rows:
+            file_path = Path("/app") / row["photo_url"].lstrip("/")
+            if not file_path.exists():
+                missing.append(f'  ID={row["id"]} "{row["name"]}": {row["photo_url"]}')
+
+        if missing:
+            report_lines.append(f"ВІДСУТНІ ФАЙЛИ ({len(missing)} шт.) — потрібно перезавантажити:")
+            report_lines.extend(missing)
+        else:
+            report_lines.append("Всі фото з БД є на диску ✓")
+
+        zf.writestr("report.txt", "\n".join(report_lines))
+
     return Response(
         content=zip_buffer.getvalue(),
         media_type="application/zip",
