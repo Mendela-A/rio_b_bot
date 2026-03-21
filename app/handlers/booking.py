@@ -699,7 +699,7 @@ def _my_bookings_kb(bookings: list) -> InlineKeyboardMarkup:
                 text=f"✏️ Змінити #{b['id']}",
                 callback_data=f"booking:change:{b['id']}",
             )]
-            if b["status"] == "new":
+            if b["status"] in ("new", "confirmed") and b["booking_date"] >= dt_date.today():
                 row.append(InlineKeyboardButton(
                     text=f"❌ Скасувати #{b['id']}",
                     callback_data=f"booking:user_cancel:{b['id']}",
@@ -793,7 +793,7 @@ async def user_cancel_reason_text(message: Message, state: FSMContext, pool: asy
     row = await pool.fetchrow(
         """
         UPDATE bookings SET status='cancelled'
-        WHERE id=$1 AND telegram_id=$2 AND status='new'
+        WHERE id=$1 AND telegram_id=$2 AND status IN ('new', 'confirmed') AND booking_date >= CURRENT_DATE
         RETURNING id, full_name, phone, children_count, booking_date
         """,
         booking_id, message.from_user.id,
@@ -1159,7 +1159,7 @@ async def _do_cancel_booking(
     row = await pool.fetchrow(
         """
         UPDATE bookings SET status='cancelled'
-        WHERE id=$1 AND telegram_id=$2 AND status='new'
+        WHERE id=$1 AND telegram_id=$2 AND status IN ('new', 'confirmed') AND booking_date >= CURRENT_DATE
         RETURNING id, full_name, phone, children_count, booking_date
         """,
         booking_id, user_id,
