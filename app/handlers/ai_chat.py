@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import time
 
 import anthropic
@@ -28,6 +29,15 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 _MSG_TTL = 5.0
+
+
+def _strip_markdown(text: str) -> str:
+    """Прибирає markdown-форматування з AI-відповіді."""
+    text = re.sub(r'\*+', '', text)      # * та **
+    text = re.sub(r'_+', '', text)       # _ та __
+    text = re.sub(r'#+\s*', '', text)    # # ## ###
+    text = re.sub(r'`+', '', text)       # ` та ```
+    return text.strip()
 
 
 async def _delete_after(message, delay: float = _MSG_TTL) -> None:
@@ -225,7 +235,12 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
             messages=messages,
         )
         response_ms = int((time.monotonic() - t0) * 1000)
-        reply_text = response.content[0].text
+        if not response.content:
+            logger.error("Anthropic API returned empty content")
+            await _update_or_send(bot, message.chat.id, state,
+                                  "Виникла помилка. Спробуйте пізніше або зверніться до адміністратора.")
+            return
+        reply_text = _strip_markdown(response.content[0].text)
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
         cache_write = getattr(response.usage, "cache_creation_input_tokens", 0) or 0

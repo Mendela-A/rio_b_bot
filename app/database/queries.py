@@ -347,6 +347,8 @@ async def apply_change_request(pool: asyncpg.Pool, request_id: int) -> None:
                 "SELECT booking_id, proposed_date, proposed_children_count FROM booking_change_requests WHERE id=$1",
                 request_id,
             )
+            if req is None:
+                return
             booking_id = req["booking_id"]
             await conn.execute(
                 "UPDATE bookings SET booking_date=$1, children_count=$2 WHERE id=$3",

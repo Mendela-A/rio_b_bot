@@ -546,6 +546,8 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
 # --- Helpers ---
 
 def _fmt_date(iso: str) -> str:
+    if not iso or len(iso) < 10:
+        return "—"
     return f"{iso[8:10]}.{iso[5:7]}.{iso[:4]}"
 
 

@@ -44,7 +44,7 @@
         <td>{{ c.birthday_person_name }}</td>
         <td>
           {% if bday %}
-            {{ "%02d.%02d" % (bday.day, bday.month) }}
+            {{ bday.strftime("%d.%m.%Y") }}
           {% else %}—{% endif %}
         </td>
         <td>{{ c.full_name or "—" }}</td>
