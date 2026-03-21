@@ -62,6 +62,10 @@
     <div class="info-row">👤 {{ b.full_name }}</div>
     <div class="info-row">📱 <a href="tel:{{ b.phone }}">{{ b.phone }}</a></div>
     <div class="info-row">👶 Дітей: {{ b.children_count }}</div>
+    <div class="info-row">👨 Дорослих: {{ b.adults_count or '—' }}</div>
+    {% if b.birthday_person_name %}
+    <div class="info-row">🎂 Іменинник: {{ b.birthday_person_name }}{% if b.birthday_person_date %} ({{ b.birthday_person_date.strftime('%d.%m.%Y') }}){% endif %}</div>
+    {% endif %}
 
     {% if b.services %}
     <ul class="services-list list-unstyled mb-0">

@@ -232,18 +232,28 @@ async def create_booking(
     full_name: str,
     phone: str,
     children_count: int,
+    adults_count: int,
+    birthday_person_name: str,
+    birthday_person_date,
     booking_date: str,
 ) -> int:
     row = await pool.fetchrow(
         """
-        INSERT INTO bookings (telegram_id, full_name, phone, children_count, booking_date)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO bookings (
+            telegram_id, full_name, phone, children_count,
+            adults_count, birthday_person_name, birthday_person_date,
+            booking_date
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id
         """,
         telegram_id,
         full_name,
         phone,
         children_count,
+        adults_count,
+        birthday_person_name,
+        birthday_person_date,
         booking_date,
     )
     return row["id"]

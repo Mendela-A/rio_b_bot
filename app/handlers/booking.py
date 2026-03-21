@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import re
-from datetime import date as dt_date
+from datetime import date as dt_date, datetime as dt_datetime
 
 import asyncpg
 from aiogram import Router, F, Bot
@@ -39,6 +39,9 @@ class BookingStates(StatesGroup):
     waiting_name = State()
     waiting_phone = State()
     waiting_children = State()
+    waiting_adults = State()
+    waiting_birthday_name = State()
+    waiting_birthday_date = State()
     waiting_date = State()
     waiting_cancel_reason = State()
     quick_waiting_name = State()
@@ -190,6 +193,75 @@ async def booking_children(message: Message, state: FSMContext, bot: Bot, pool: 
     asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(children_count=count)
+    await state.set_state(BookingStates.waiting_adults)
+    sent = await message.answer(texts.get("booking.ask_adults"), reply_markup=cancel_kb())
+    await state.update_data(bot_msg_id=sent.message_id)
+
+
+# --- Step 4: adults count ---
+
+@router.message(BookingStates.waiting_adults)
+async def booking_adults(message: Message, state: FSMContext, bot: Bot) -> None:
+    text = message.text.strip() if message.text else ""
+    try:
+        count = int(text)
+        if count < 0:
+            raise ValueError
+    except ValueError:
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        err = await message.answer("⚠️ Введіть ціле число 0 або більше")
+        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        return
+
+    data = await state.get_data()
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+
+    await state.update_data(adults_count=count)
+    await state.set_state(BookingStates.waiting_birthday_name)
+    sent = await message.answer(texts.get("booking.ask_birthday_name"), reply_markup=cancel_kb())
+    await state.update_data(bot_msg_id=sent.message_id)
+
+
+# --- Step 5: birthday person name ---
+
+@router.message(BookingStates.waiting_birthday_name)
+async def booking_birthday_name(message: Message, state: FSMContext, bot: Bot) -> None:
+    name = message.text.strip() if message.text else ""
+    if len(name) < 2:
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
+        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        return
+
+    data = await state.get_data()
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+
+    await state.update_data(birthday_person_name=name)
+    await state.set_state(BookingStates.waiting_birthday_date)
+    sent = await message.answer(texts.get("booking.ask_birthday_date"), reply_markup=cancel_kb())
+    await state.update_data(bot_msg_id=sent.message_id)
+
+
+# --- Step 6: birthday person date ---
+
+@router.message(BookingStates.waiting_birthday_date)
+async def booking_birthday_date(message: Message, state: FSMContext, bot: Bot, pool: asyncpg.Pool) -> None:
+    text = message.text.strip() if message.text else ""
+    try:
+        parsed = dt_datetime.strptime(text, "%d.%m.%Y").date()
+    except ValueError:
+        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        err = await message.answer("⚠️ Невірний формат. Введіть дату у форматі ДД.ММ.РРРР")
+        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        return
+
+    data = await state.get_data()
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+
+    await state.update_data(birthday_person_date=parsed.isoformat())
     await state.set_state(BookingStates.waiting_date)
     days = int(await get_setting(pool, "booking_days_ahead", "14"))
     blocked = await get_blocked_dates(pool)
@@ -198,7 +270,7 @@ async def booking_children(message: Message, state: FSMContext, bot: Bot, pool: 
     await state.update_data(bot_msg_id=sent.message_id)
 
 
-# --- Step 4: date selection ---
+# --- Step 7: date selection ---
 
 @router.callback_query(F.data.startswith("booking:date:"), BookingStates.waiting_date)
 async def booking_date(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
@@ -342,6 +414,9 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
             full_name=data["full_name"],
             phone=data["phone"],
             children_count=data["children_count"],
+            adults_count=data["adults_count"],
+            birthday_person_name=data["birthday_person_name"],
+            birthday_person_date=dt_date.fromisoformat(data["birthday_person_date"]),
             booking_date=dt_date.fromisoformat(data["booking_date"]),
         )
     except Exception as e:
@@ -497,6 +572,9 @@ def _confirmation_text(data: dict, cart_items: list) -> str:
         f"👤 {data['full_name']}",
         f"📱 {data['phone']}",
         f"👶 Дітей: {data['children_count']}",
+        f"👨 Дорослих: {data.get('adults_count', '—')}",
+        f"🎂 Іменинник: {data.get('birthday_person_name', '—')}"
+        + (f" ({_fmt_date(data['birthday_person_date'])})" if data.get('birthday_person_date') else ""),
         f"📆 Дата: {_fmt_date(data['booking_date'])}",
     ]
     lines.extend(_services_lines(cart_items))
@@ -511,6 +589,9 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list)
         f"👤 {data['full_name']}",
         f"📱 {data['phone']}",
         f"👶 Дітей: {data['children_count']}",
+        f"👨 Дорослих: {data.get('adults_count', '—')}",
+        f"🎂 Іменинник: {data.get('birthday_person_name', '—')}"
+        + (f" ({_fmt_date(data['birthday_person_date'])})" if data.get('birthday_person_date') else ""),
         f"📆 Дата: {_fmt_date(data['booking_date'])}",
     ]
     if cart_items:
@@ -682,9 +763,9 @@ async def user_cancel_with_reason(
         await callback.answer()
         return
 
+    await callback.answer()
     reason = _CANCEL_REASONS.get(reason_key, "")
     await _do_cancel_booking(callback.message, pool, bot, booking_id, callback.from_user.id, reason)
-    await callback.answer()
 
 
 @router.message(BookingStates.waiting_cancel_reason)
@@ -696,14 +777,16 @@ async def user_cancel_reason_text(message: Message, state: FSMContext, pool: asy
     await state.clear()
     asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
 
-    if not reason:
-        return
-
     async def _edit(text: str, kb=None) -> None:
         try:
             await bot.edit_message_text(text, chat_id=message.chat.id, message_id=bot_msg_id, reply_markup=kb)
         except Exception:
             await message.answer(text, reply_markup=kb)
+
+    if not reason:
+        bookings = await get_user_bookings(pool, message.from_user.id)
+        await _edit(_my_bookings_text(bookings), _my_bookings_kb(bookings))
+        return
 
     row = await pool.fetchrow(
         """
@@ -1083,4 +1166,7 @@ async def _do_cancel_booking(
         await _notify_admin_cancelled(bot, dict(row), reason)
 
     bookings = await get_user_bookings(pool, user_id)
-    await msg.edit_text(_my_bookings_text(bookings), reply_markup=_my_bookings_kb(bookings))
+    try:
+        await msg.edit_text(_my_bookings_text(bookings), reply_markup=_my_bookings_kb(bookings))
+    except Exception:
+        await msg.answer(_my_bookings_text(bookings), reply_markup=_my_bookings_kb(bookings))

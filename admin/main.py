@@ -25,6 +25,7 @@ from auth import MyAuthProvider
 from db import lifespan
 from shared import templates as _templates, MAX_IMAGE_WIDTH, IMAGE_QUALITY, MAX_UPLOAD_SIZE
 from views.bookings import BookingsView
+from views.children import ChildrenView
 from views.bot_texts import BotTextsView
 from views.categories import CategoryView
 from views.info_pages import InfoPageView
@@ -177,6 +178,7 @@ admin = BaseAdmin(
 
 admin.add_view(ServicesEditorView())
 admin.add_view(BookingsView())
+admin.add_view(ChildrenView())
 admin.add_view(BotTextsView())
 admin.add_view(CategoryView())
 admin.add_view(InfoPageView())

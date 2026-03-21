@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}База іменинників — РІО Адмін{% endblock %}
+{% block page_title %}🎂 База іменинників{% endblock %}
+
+{% block content %}
+{% set month_names = [
+  (1, "Січень"), (2, "Лютий"), (3, "Березень"), (4, "Квітень"),
+  (5, "Травень"), (6, "Червень"), (7, "Липень"), (8, "Серпень"),
+  (9, "Вересень"), (10, "Жовтень"), (11, "Листопад"), (12, "Грудень")
+] %}
+
+<div class="d-flex align-items-center gap-3 mb-4">
+  <form method="get" class="d-flex align-items-center gap-2">
+    <select name="month" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <option value="">Всі місяці</option>
+      {% for num, name in month_names %}
+      <option value="{{ num }}" {% if month_filter == num|string %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <span class="text-muted">Знайдено: {{ children|length }}</span>
+</div>
+
+{% if children %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>№ бронювання</th>
+        <th>Іменинник</th>
+        <th>Дата народження</th>
+        <th>Клієнт</th>
+        <th>Телефон</th>
+        <th>Дата свята</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in children %}
+      {% set bday = c.birthday_person_date %}
+      {% set is_current_month = bday and bday.month == now_month %}
+      <tr class="{% if is_current_month %}table-warning{% endif %}">
+        <td>#{{ c.id }}</td>
+        <td>{{ c.birthday_person_name }}</td>
+        <td>
+          {% if bday %}
+            {{ "%02d.%02d" % (bday.day, bday.month) }}
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ c.full_name or "—" }}</td>
+        <td>{{ c.phone or "—" }}</td>
+        <td>
+          {% if c.booking_date %}
+            {{ c.booking_date.strftime("%d.%m.%Y") }}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-info">Іменинників не знайдено.</div>
+{% endif %}
+{% endblock %}

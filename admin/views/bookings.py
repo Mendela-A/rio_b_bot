@@ -67,6 +67,7 @@ class BookingsView(CustomView):
                 bookings = await conn.fetch(
                     f"""
                     SELECT b.id, b.full_name, b.phone, b.children_count,
+                           b.adults_count, b.birthday_person_name, b.birthday_person_date,
                            b.booking_date, b.status, b.created_at
                     FROM bookings b
                     {bookings_where}
