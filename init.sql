@@ -50,7 +50,7 @@ CREATE TABLE bookings (
 CREATE TABLE booking_items (
     id SERIAL PRIMARY KEY,
     booking_id INT REFERENCES bookings(id) ON DELETE CASCADE,
-    service_id INT REFERENCES services(id),
+    service_id INT REFERENCES services(id) ON DELETE SET NULL,
     service_name TEXT NOT NULL,
     price NUMERIC(10,2),
     quantity INT DEFAULT 1
@@ -80,7 +80,7 @@ CREATE TABLE inquiries (
     telegram_id BIGINT NOT NULL,
     full_name TEXT NOT NULL,
     phone TEXT NOT NULL,
-    service_id INT REFERENCES services(id),
+    service_id INT REFERENCES services(id) ON DELETE SET NULL,
     service_name TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -126,7 +126,7 @@ CREATE TABLE booking_change_requests (
 CREATE TABLE booking_change_items (
     id SERIAL PRIMARY KEY,
     change_request_id INT REFERENCES booking_change_requests(id) ON DELETE CASCADE,
-    service_id INT REFERENCES services(id),
+    service_id INT REFERENCES services(id) ON DELETE SET NULL,
     service_name TEXT NOT NULL,
     price NUMERIC(10,2),
     quantity INT DEFAULT 1
