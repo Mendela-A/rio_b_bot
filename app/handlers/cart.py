@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from app import texts
-from app.database.queries import cart_add, cart_get, cart_remove, get_services_by_type
+from app.database.queries import cart_add, cart_get, cart_remove, get_services_by_type, get_entry_tariff
 from app.keyboards.booking_kb import cart_kb
 from app.keyboards.services_kb import services_kb
 
@@ -70,7 +70,8 @@ async def cart_add_booking_handler(callback: CallbackQuery, pool: asyncpg.Pool, 
         await state.clear()
         return
     cart_items = await cart_get(pool, callback.from_user.id)
-    await edit_or_replace(callback, _confirmation_text(data, cart_items), reply_markup=confirm_booking_kb())
+    entry_rate = await get_entry_tariff(pool, data["booking_date"])
+    await edit_or_replace(callback, _confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
 
 
 @router.callback_query(F.data.startswith("cart:add:"))

@@ -30,6 +30,7 @@ from views.bot_texts import BotTextsView
 from views.categories import CategoryView
 from views.info_pages import InfoPageView
 from views.services_editor import ServicesEditorView
+from views.tariff_editor import TariffEditorView
 from views.blocked_dates import BlockedDatesView
 from views.settings import SettingsView
 from views.admin_users import AdminUsersView
@@ -177,6 +178,7 @@ admin = BaseAdmin(
 )
 
 admin.add_view(ServicesEditorView())
+admin.add_view(TariffEditorView())
 admin.add_view(BookingsView())
 admin.add_view(ChildrenView())
 admin.add_view(BotTextsView())

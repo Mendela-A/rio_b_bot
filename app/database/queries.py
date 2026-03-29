@@ -121,6 +121,20 @@ async def get_setting(pool: asyncpg.Pool, key: str, default: str = "") -> str:
     return row["value"] if row else default
 
 
+async def get_entry_tariff(pool: asyncpg.Pool, booking_date) -> float:
+    """Повертає ціну за дитину для дати (будні або вихідні)."""
+    from datetime import date as _date
+    if isinstance(booking_date, str):
+        booking_date = _date.fromisoformat(booking_date)
+    is_weekend = booking_date.isoweekday() >= 6
+    key = "tariff_weekend" if is_weekend else "tariff_weekday"
+    val = await get_setting(pool, key, "0")
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return 0.0
+
+
 # --- Inquiries (quick booking) ---
 
 async def create_inquiry(

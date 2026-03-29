@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Тарифи — РІО{% endblock %}
+{% block page_title %}Тариф на вхід{% endblock %}
+
+{% block content %}
+
+{% if saved %}
+<div class="alert alert-success">Тарифи збережено ✓</div>
+{% endif %}
+
+<div class="card" style="max-width:420px">
+  <div class="card-body">
+    <form method="POST" action="/admin/tariff-editor">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Будні (Пн–Пт) — грн за дитину</label>
+        <input type="number" class="form-control" name="tariff_weekday"
+               value="{{ tariff_weekday }}" min="0" step="1" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Вихідні (Сб–Нд) — грн за дитину</label>
+        <input type="number" class="form-control" name="tariff_weekend"
+               value="{{ tariff_weekend }}" min="0" step="1" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Зберегти</button>
+    </form>
+  </div>
+</div>
+
+<div class="mt-3 text-muted small">
+  Вхід автоматично рахується при бронюванні: тариф × кількість дітей.<br>
+  Встановіть 0, щоб вхід не відображався у підтвердженні.
+</div>
+
+{% endblock %}

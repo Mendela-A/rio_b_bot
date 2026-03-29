@@ -20,7 +20,7 @@ from app.database.queries import (
     get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
     get_booking_by_id, update_booking_status, get_booking_items,
     create_change_request, create_change_items, get_change_request, get_pending_change_for_booking,
-    update_change_request_status, apply_change_request,
+    update_change_request_status, apply_change_request, get_entry_tariff,
 )
 from app.keyboards.booking_kb import (
     cancel_kb, date_selection_kb, calendar_kb, confirm_booking_kb, cart_kb, confirm_change_kb,
@@ -299,8 +299,9 @@ async def booking_date(callback: CallbackQuery, state: FSMContext, pool: asyncpg
 
     data = await state.get_data()
     cart_items = await cart_get(pool, callback.from_user.id)
+    entry_rate = await get_entry_tariff(pool, raw)
 
-    await callback.message.edit_text(_confirmation_text(data, cart_items), reply_markup=confirm_booking_kb())
+    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
     await state.update_data(bot_msg_id=callback.message.message_id)
     await callback.answer()
 
@@ -340,7 +341,8 @@ async def booking_caldate(callback: CallbackQuery, state: FSMContext, pool: asyn
     await state.update_data(booking_date=raw)
     data = await state.get_data()
     cart_items = await cart_get(pool, callback.from_user.id)
-    await callback.message.edit_text(_confirmation_text(data, cart_items), reply_markup=confirm_booking_kb())
+    entry_rate = await get_entry_tariff(pool, raw)
+    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
     await state.update_data(bot_msg_id=callback.message.message_id)
     await callback.answer()
 
@@ -389,7 +391,8 @@ async def booking_resume_confirm(callback: CallbackQuery, state: FSMContext, poo
         await callback.answer()
         return
     cart_items = await cart_get(pool, callback.from_user.id)
-    await callback.message.edit_text(_confirmation_text(data, cart_items), reply_markup=confirm_booking_kb())
+    entry_rate = await get_entry_tariff(pool, data["booking_date"])
+    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
     await callback.answer()
 
 
@@ -428,6 +431,16 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
         return
 
     try:
+        booking_date = dt_date.fromisoformat(data["booking_date"])
+        entry_rate = await get_entry_tariff(pool, booking_date)
+        children_count = data.get("children_count", 0)
+        if entry_rate and children_count:
+            is_weekend = booking_date.isoweekday() >= 6
+            label = "Вхід (вихідні)" if is_weekend else "Вхід (будні)"
+            await pool.execute(
+                "INSERT INTO booking_items (booking_id, service_id, service_name, price, quantity) VALUES ($1, NULL, $2, $3, $4)",
+                booking_id, label, entry_rate * children_count, children_count,
+            )
         if cart_items:
             await create_booking_items(pool, booking_id, cart_items)
             await cart_clear(pool, callback.from_user.id)
@@ -551,24 +564,33 @@ def _fmt_date(iso: str) -> str:
     return f"{iso[8:10]}.{iso[5:7]}.{iso[:4]}"
 
 
-def _services_lines(cart_items: list) -> list[str]:
-    if not cart_items:
-        return ["\nПослуги не обрані"]
-    lines = ["\n<b>Послуги:</b>"]
+def _services_lines(cart_items: list, entry_rate: float = 0, children_count: int = 0) -> list[str]:
+    lines = ["\n<b>Вартість:</b>"]
     total = 0
-    for item in cart_items:
-        price, qty = item["price"], item["quantity"]
-        if price:
-            total += price * qty
-            lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
-        else:
-            lines.append(f"• {item['name']} × {qty}")
+
+    if entry_rate and children_count:
+        entry_total = entry_rate * children_count
+        total += entry_total
+        lines.append(f"🎟 Вхід: {entry_rate:.0f} грн × {children_count} дітей = {entry_total:.0f} грн")
+
+    if not cart_items:
+        if not entry_rate:
+            return ["\nПослуги не обрані"]
+    else:
+        for item in cart_items:
+            price, qty = item["price"], item["quantity"]
+            if price:
+                total += price * qty
+                lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
+            else:
+                lines.append(f"• {item['name']} × {qty}")
+
     if total:
         lines.append(f"\n💰 Разом: {total:.0f} грн")
     return lines
 
 
-def _confirmation_text(data: dict, cart_items: list) -> str:
+def _confirmation_text(data: dict, cart_items: list, entry_rate: float = 0) -> str:
     lines = [
         "📋 <b>Підтвердження бронювання</b>\n",
         f"👤 {data['full_name']}",
@@ -579,7 +601,7 @@ def _confirmation_text(data: dict, cart_items: list) -> str:
         + (f" ({_fmt_date(data['birthday_person_date'])})" if data.get('birthday_person_date') else ""),
         f"📆 Дата: {_fmt_date(data['booking_date'])}",
     ]
-    lines.extend(_services_lines(cart_items))
+    lines.extend(_services_lines(cart_items, entry_rate, data.get("children_count", 0)))
     return "\n".join(lines)
 
 
