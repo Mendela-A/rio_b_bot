@@ -27,6 +27,7 @@ from app.keyboards.booking_kb import (
     add_service_categories_kb,
 )
 from app.keyboards.main_menu import main_menu_kb
+from app.handlers._utils import delete_after
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -74,27 +75,6 @@ async def _try_delete(bot: Bot, chat_id: int, message_id: int | None) -> None:
         pass
 
 
-async def _delete_after(bot: Bot, chat_id: int, message_id: int, delay: float = _MSG_TTL) -> None:
-    await asyncio.sleep(delay)
-    await _try_delete(bot, chat_id, message_id)
-
-
-def _cart_text(cart_items: list) -> str:
-    lines = ["🛒 <b>Ваш кошик:</b>\n"]
-    total = 0
-    for item in cart_items:
-        price, qty = item["price"], item["quantity"]
-        if price:
-            subtotal = price * qty
-            total += subtotal
-            lines.append(f"• {item['name']} — {price:.0f} грн × {qty} = {subtotal:.0f} грн")
-        else:
-            lines.append(f"• {item['name']} × {qty}")
-    if total:
-        lines.append(f"\n💰 Разом: {total:.0f} грн")
-    return "\n".join(lines)
-
-
 # --- Start FSM ---
 
 @router.callback_query(F.data == "booking:start")
@@ -111,14 +91,14 @@ async def booking_start(callback: CallbackQuery, state: FSMContext) -> None:
 async def booking_name(message: Message, state: FSMContext, bot: Bot) -> None:
     name = message.text.strip() if message.text else ""
     if len(name) < 2:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(full_name=name)
     await state.set_state(BookingStates.waiting_phone)
@@ -138,10 +118,10 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot) -> None:
     # Cancel via reply keyboard
     if message.text == "❌ Скасувати":
         await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         await state.clear()
         msg = await message.answer("Бронювання скасовано.", reply_markup=ReplyKeyboardRemove())
-        asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id))
         await message.answer("Головне меню:", reply_markup=main_menu_kb())
         return
 
@@ -153,19 +133,19 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot) -> None:
     elif message.text:
         phone = message.text.strip()
         if not re.match(r'^[\d\s\+\-\(\)]{10,}$', phone):
-            asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+            asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
             err = await message.answer(
                 "⚠️ Невірний формат. Введіть телефон або натисніть кнопку нижче:",
                 reply_markup=_phone_kb(),
             )
-            asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+            asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
             return
     else:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         return
 
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(phone=phone)
     await state.set_state(BookingStates.waiting_children)
@@ -183,14 +163,14 @@ async def booking_children(message: Message, state: FSMContext, bot: Bot, pool: 
         if count <= 0:
             raise ValueError
     except ValueError:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ціле число більше 0")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(children_count=count)
     await state.set_state(BookingStates.waiting_adults)
@@ -208,14 +188,14 @@ async def booking_adults(message: Message, state: FSMContext, bot: Bot) -> None:
         if count < 0:
             raise ValueError
     except ValueError:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ціле число 0 або більше")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(adults_count=count)
     await state.set_state(BookingStates.waiting_birthday_name)
@@ -229,14 +209,14 @@ async def booking_adults(message: Message, state: FSMContext, bot: Bot) -> None:
 async def booking_birthday_name(message: Message, state: FSMContext, bot: Bot) -> None:
     name = message.text.strip() if message.text else ""
     if len(name) < 2:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(birthday_person_name=name)
     await state.set_state(BookingStates.waiting_birthday_date)
@@ -252,14 +232,14 @@ async def booking_birthday_date(message: Message, state: FSMContext, bot: Bot, p
     try:
         parsed = dt_datetime.strptime(text, "%d.%m.%Y").date()
     except ValueError:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Невірний формат. Введіть дату у форматі ДД.ММ.РРРР")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(birthday_person_date=parsed.isoformat())
     await state.set_state(BookingStates.waiting_date)
@@ -284,13 +264,16 @@ async def booking_date(callback: CallbackQuery, state: FSMContext, pool: asyncpg
         return
 
     today = dt_date.today()
-    days_ahead = int(await get_setting(pool, "booking_days_ahead", "14"))
+    days_ahead_str, blocked, blocked_wdays = await asyncio.gather(
+        get_setting(pool, "booking_days_ahead", "14"),
+        get_blocked_dates(pool),
+        get_blocked_weekdays(pool),
+    )
+    days_ahead = int(days_ahead_str)
     if not (today <= parsed <= today + timedelta(days=days_ahead)):
         await callback.answer("Ця дата недоступна", show_alert=True)
         return
 
-    blocked = await get_blocked_dates(pool)
-    blocked_wdays = await get_blocked_weekdays(pool)
     if parsed in blocked or parsed.weekday() in blocked_wdays:
         await callback.answer("Ця дата заблокована", show_alert=True)
         return
@@ -490,14 +473,14 @@ async def quick_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.
 async def quick_name(message: Message, state: FSMContext, bot: Bot) -> None:
     name = (message.text or "").strip()
     if len(name) < 2:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ім'я (мінімум 2 символи)")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(full_name=name)
     await state.set_state(BookingStates.quick_waiting_phone)
@@ -511,10 +494,10 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
 
     if message.text == "❌ Скасувати":
         await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         await state.clear()
         msg = await message.answer("Скасовано.", reply_markup=ReplyKeyboardRemove())
-        asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id))
         await message.answer("Головне меню:", reply_markup=main_menu_kb())
         return
 
@@ -525,19 +508,19 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     elif message.text:
         phone = message.text.strip()
         if not re.match(r'^[\d\s\+\-\(\)]{10,}$', phone):
-            asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+            asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
             err = await message.answer(
                 "⚠️ Невірний формат. Введіть телефон або натисніть кнопку нижче:",
                 reply_markup=_phone_kb(),
             )
-            asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+            asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
             return
     else:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         return
 
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     full_name = data["full_name"]
     service_id = data["quick_service_id"]
@@ -550,7 +533,7 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
         f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМи зателефонуємо вам найближчим часом.",
         reply_markup=ReplyKeyboardRemove(),
     )
-    asyncio.create_task(_delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
+    asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
     await message.answer("Головне меню:", reply_markup=main_menu_kb())
 
     await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name)
@@ -811,7 +794,7 @@ async def user_cancel_reason_text(message: Message, state: FSMContext, pool: asy
     booking_id = data.get("pending_cancel_id")
     bot_msg_id = data.get("bot_msg_id")
     await state.clear()
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     async def _edit(text: str, kb=None) -> None:
         try:
@@ -863,8 +846,8 @@ async def change_booking_start(
     await cart_clear(pool, callback.from_user.id)
     existing_items = await get_booking_items(pool, booking_id)
     for item in existing_items:
-        for _ in range(item["quantity"]):
-            await cart_add(pool, callback.from_user.id, item["service_id"])
+        if item["service_id"] is not None:
+            await cart_add(pool, callback.from_user.id, item["service_id"], quantity=item["quantity"])
 
     await state.set_state(ChangeStates.waiting_date)
     await state.update_data(
@@ -937,13 +920,16 @@ async def change_date_selected(callback: CallbackQuery, state: FSMContext, pool:
         return
 
     today = dt_date.today()
-    days_ahead = int(await get_setting(pool, "booking_days_ahead", "14"))
+    days_ahead_str, blocked, blocked_wdays = await asyncio.gather(
+        get_setting(pool, "booking_days_ahead", "14"),
+        get_blocked_dates(pool),
+        get_blocked_weekdays(pool),
+    )
+    days_ahead = int(days_ahead_str)
     if not (today <= parsed <= today + timedelta(days=days_ahead)):
         await callback.answer("Ця дата недоступна", show_alert=True)
         return
 
-    blocked = await get_blocked_dates(pool)
-    blocked_wdays = await get_blocked_weekdays(pool)
     if parsed in blocked or parsed.weekday() in blocked_wdays:
         await callback.answer("Ця дата заблокована", show_alert=True)
         return
@@ -974,14 +960,14 @@ async def change_children(message: Message, state: FSMContext, bot: Bot, pool: a
         if count <= 0:
             raise ValueError
     except ValueError:
-        asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
         err = await message.answer("⚠️ Введіть ціле число більше 0")
-        asyncio.create_task(_delete_after(bot, message.chat.id, err.message_id))
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
         return
 
     data = await state.get_data()
     await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
-    asyncio.create_task(_delete_after(bot, message.chat.id, message.message_id))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
 
     await state.update_data(proposed_children=count)
     cart_items = await cart_get(pool, message.from_user.id)

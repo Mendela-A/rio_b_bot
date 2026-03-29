@@ -9,10 +9,12 @@ CREATE TABLE services (
     category_id INT REFERENCES categories(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     price NUMERIC(10,2),
+    price_per_child NUMERIC(10,2),
     description TEXT,
     is_active BOOLEAN DEFAULT true,
     sort_order INT DEFAULT 0,
-    parent_id INT REFERENCES services(id) ON DELETE CASCADE
+    parent_id INT REFERENCES services(id) ON DELETE CASCADE,
+    photo_url TEXT
 );
 
 CREATE TABLE info_pages (

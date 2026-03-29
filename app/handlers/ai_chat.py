@@ -29,6 +29,17 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 _MSG_TTL = 5.0
+_anthropic_client: anthropic.AsyncAnthropic | None = None
+
+
+def _get_anthropic_client() -> anthropic.AsyncAnthropic | None:
+    global _anthropic_client
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    if _anthropic_client is None:
+        _anthropic_client = anthropic.AsyncAnthropic(api_key=api_key)
+    return _anthropic_client
 
 
 def _strip_markdown(text: str) -> str:
@@ -199,30 +210,36 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
                               "Асистент тимчасово недоступний. Спробуйте пізніше.")
         return
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
+    client = _get_anthropic_client()
+    if not client:
         logger.error("ANTHROPIC_API_KEY is not set")
         await _update_or_send(bot, message.chat.id, state,
                               "Помилка конфігурації. Зверніться до адміністратора.")
         return
 
-    history_limit = int(await get_setting(pool, "ai_history_limit", "20"))
-    max_tokens = int(await get_setting(pool, "ai_max_tokens", "1024"))
-    description = await get_setting(pool, "ai_company_description", "розважальний заклад")
-    prompt_template = await get_setting(pool, "ai_system_prompt", _DEFAULT_SYSTEM_PROMPT)
-    model = await get_setting(pool, "ai_model", "claude-haiku-4-5-20251001")
-    no_answer_phrase = await get_setting(pool, "ai_no_answer_phrase", _DEFAULT_NO_ANSWER_PHRASE)
-
+    (
+        history_limit_str, max_tokens_str, description,
+        prompt_template, model, no_answer_phrase,
+        qa_pairs, services,
+    ) = await asyncio.gather(
+        get_setting(pool, "ai_history_limit", "20"),
+        get_setting(pool, "ai_max_tokens", "1024"),
+        get_setting(pool, "ai_company_description", "розважальний заклад"),
+        get_setting(pool, "ai_system_prompt", _DEFAULT_SYSTEM_PROMPT),
+        get_setting(pool, "ai_model", "claude-haiku-4-5-20251001"),
+        get_setting(pool, "ai_no_answer_phrase", _DEFAULT_NO_ANSWER_PHRASE),
+        get_ai_qa_pairs(pool),
+        get_services_for_ai(pool),
+    )
+    history_limit = int(history_limit_str)
+    max_tokens = int(max_tokens_str)
     history = await get_ai_history(pool, user_id, limit=history_limit)
-    qa_pairs = await get_ai_qa_pairs(pool)
-    services = await get_services_for_ai(pool)
 
     system_prompt = _build_system_prompt(prompt_template, description, qa_pairs, no_answer_phrase, services)
     messages = [{"role": r["role"], "content": r["content"]} for r in history]
     messages.append({"role": "user", "content": user_text})
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
         t0 = time.monotonic()
         response = await client.messages.create(
             model=model,

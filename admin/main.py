@@ -93,7 +93,7 @@ class DashboardView(CustomView):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict", max_age=86400)
 app.mount(
     "/uploads",
     StaticFiles(directory=str(UPLOADS_DIR)),
@@ -173,7 +173,7 @@ async def export_db(request: Request):
 admin = BaseAdmin(
     title="РІО Адмін",
     auth_provider=MyAuthProvider(),
-    middlewares=[Middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict")],
+    middlewares=[Middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict", max_age=86400)],
     index_view=DashboardView(),
 )
 
@@ -229,6 +229,8 @@ async def move_category(request: Request):
     data = await request.json()
     cat_id = int(data["id"])
     direction = data["direction"]
+    if direction not in ("up", "down"):
+        return JSONResponse({"error": "invalid direction"}, status_code=400)
 
     async with db.pool.acquire() as conn:
         rows = await conn.fetch(
@@ -259,6 +261,8 @@ async def move_service(request: Request):
     data = await request.json()
     service_id = int(data["id"])
     direction = data["direction"]
+    if direction not in ("up", "down"):
+        return JSONResponse({"error": "invalid direction"}, status_code=400)
 
     async with db.pool.acquire() as conn:
         svc = await conn.fetchrow(

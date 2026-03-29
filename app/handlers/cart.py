@@ -211,7 +211,7 @@ def _state_flags(current_state: str | None) -> tuple[bool, bool]:
     if current_state is None:
         return False, False
     in_change = "ChangeStates" in current_state
-    in_booking = not in_change and current_state is not None
+    in_booking = "BookingStates" in current_state
     return in_booking, in_change
 
 

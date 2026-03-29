@@ -1,5 +1,16 @@
+import asyncio
+
+from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+
+
+async def delete_after(bot: Bot, chat_id: int, message_id: int, delay: float = 10.0) -> None:
+    await asyncio.sleep(delay)
+    try:
+        await bot.delete_message(chat_id, message_id)
+    except Exception:
+        pass
 
 
 async def edit_or_replace(
