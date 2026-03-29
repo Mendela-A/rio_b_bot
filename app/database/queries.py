@@ -162,22 +162,23 @@ async def create_inquiry(
 
 # --- Cart ---
 
-async def cart_add(pool: asyncpg.Pool, telegram_id: int, service_id: int) -> None:
+async def cart_add(pool: asyncpg.Pool, telegram_id: int, service_id: int, quantity: int = 1) -> None:
     await pool.execute(
         """
         INSERT INTO cart_items (telegram_id, service_id, quantity)
-        VALUES ($1, $2, 1)
-        ON CONFLICT (telegram_id, service_id) DO UPDATE SET quantity = LEAST(cart_items.quantity + 1, 10)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (telegram_id, service_id) DO UPDATE SET quantity = EXCLUDED.quantity
         """,
         telegram_id,
         service_id,
+        quantity,
     )
 
 
 async def cart_get(pool: asyncpg.Pool, telegram_id: int) -> list[asyncpg.Record]:
     return await pool.fetch(
         """
-        SELECT ci.service_id, ci.quantity, s.name, s.price
+        SELECT ci.service_id, ci.quantity, s.name, s.price, s.price_per_child
         FROM cart_items ci
         JOIN services s ON ci.service_id = s.id
         WHERE ci.telegram_id = $1
@@ -273,6 +274,13 @@ async def create_booking(
     return row["id"]
 
 
+def _resolve_item_price(item) -> float | None:
+    ppc = item.get("price_per_child")
+    if ppc:
+        return ppc * item["quantity"]
+    return item["price"]
+
+
 async def create_booking_items(
     pool: asyncpg.Pool, booking_id: int, cart_items: list[asyncpg.Record]
 ) -> None:
@@ -282,7 +290,7 @@ async def create_booking_items(
         VALUES ($1, $2, $3, $4, $5)
         """,
         [
-            (booking_id, item["service_id"], item["name"], item["price"], item["quantity"])
+            (booking_id, item["service_id"], item["name"], _resolve_item_price(item), item["quantity"])
             for item in cart_items
         ],
     )
@@ -321,7 +329,7 @@ async def create_change_items(
         INSERT INTO booking_change_items (change_request_id, service_id, service_name, price, quantity)
         VALUES ($1, $2, $3, $4, $5)
         """,
-        [(change_request_id, item["service_id"], item["name"], item["price"], item["quantity"])
+        [(change_request_id, item["service_id"], item["name"], _resolve_item_price(item), item["quantity"])
          for item in items],
     )
 

@@ -578,8 +578,14 @@ def _services_lines(cart_items: list, entry_rate: float = 0, children_count: int
             return ["\nПослуги не обрані"]
     else:
         for item in cart_items:
-            price, qty = item["price"], item["quantity"]
-            if price:
+            qty = item["quantity"]
+            ppc = item.get("price_per_child")
+            price = item["price"]
+            if ppc:
+                subtotal = ppc * qty
+                total += subtotal
+                lines.append(f"• {item['name']} — {ppc:.0f} грн/дитина × {qty} = {subtotal:.0f} грн")
+            elif price:
                 total += price * qty
                 lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
             else:
@@ -622,8 +628,14 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list)
         lines.append("\nПослуги:")
         total = 0
         for item in cart_items:
-            price, qty = item["price"], item["quantity"]
-            if price:
+            qty = item["quantity"]
+            ppc = item.get("price_per_child")
+            price = item["price"]
+            if ppc:
+                subtotal = ppc * qty
+                total += subtotal
+                lines.append(f"• {item['name']} — {ppc:.0f} грн/дитина × {qty} = {subtotal:.0f} грн")
+            elif price:
                 total += price * qty
                 lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
             else:
