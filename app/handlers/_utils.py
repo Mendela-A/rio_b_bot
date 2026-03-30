@@ -54,6 +54,28 @@ def services_lines(cart_items: list, entry_rate: float = 0, children_count: int 
     return lines
 
 
+def cart_text(cart_items: list) -> str:
+    lines = ["🛒 <b>Ваш кошик:</b>\n"]
+    total = 0
+    for item in cart_items:
+        qty = item["quantity"]
+        ppc = float(item.get("price_per_child") or 0)
+        price = float(item["price"] or 0)
+        if ppc:
+            subtotal = ppc * qty
+            total += subtotal
+            lines.append(f"• {item['name']} — {ppc:.0f} грн/дитина × {qty} = {subtotal:.0f} грн")
+        elif price:
+            subtotal = price * qty
+            total += subtotal
+            lines.append(f"• {item['name']} — {price:.0f} грн × {qty} = {subtotal:.0f} грн")
+        else:
+            lines.append(f"• {item['name']} × {qty}")
+    if total:
+        lines.append(f"\n💰 Разом: {total:.0f} грн")
+    return "\n".join(lines)
+
+
 def confirmation_text(data: dict, cart_items: list, entry_rate: float = 0) -> str:
     lines = [
         "📋 <b>Підтвердження бронювання</b>\n",

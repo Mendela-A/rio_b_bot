@@ -12,7 +12,7 @@ from app.database.queries import (
 from app.keyboards.booking_kb import cart_kb, confirm_booking_kb
 from app.keyboards.main_menu import main_menu_kb
 from app.keyboards.services_kb import services_kb
-from app.handlers._utils import edit_or_replace, confirmation_text
+from app.handlers._utils import edit_or_replace, confirmation_text, cart_text
 from app.handlers.booking import BookingStates
 
 router = Router()
@@ -46,27 +46,6 @@ def _empty_cart_kb(in_booking: bool, in_change: bool = False) -> InlineKeyboardM
         [InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")],
     ])
 
-
-def _cart_text(cart_items: list[asyncpg.Record]) -> str:
-    lines = ["🛒 <b>Ваш кошик:</b>\n"]
-    total = 0
-    for item in cart_items:
-        qty = item["quantity"]
-        ppc = item.get("price_per_child")
-        price = item["price"]
-        if ppc:
-            subtotal = ppc * qty
-            total += subtotal
-            lines.append(f"• {item['name']} — {ppc:.0f} грн/дитина × {qty} = {subtotal:.0f} грн")
-        elif price:
-            subtotal = price * qty
-            total += subtotal
-            lines.append(f"• {item['name']} — {price:.0f} грн × {qty} = {subtotal:.0f} грн")
-        else:
-            lines.append(f"• {item['name']} × {qty}")
-    if total:
-        lines.append(f"\n💰 Разом: {total:.0f} грн")
-    return "\n".join(lines)
 
 
 async def _ask_children_count(callback: CallbackQuery, state: FSMContext,
@@ -215,7 +194,7 @@ async def cart_view_handler(callback: CallbackQuery, pool: asyncpg.Pool, state: 
     if not items:
         await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking, in_change))
     else:
-        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking, in_change))
+        await callback.message.edit_text(cart_text(items), reply_markup=cart_kb(items, in_booking, in_change))
     await callback.answer()
 
 
@@ -229,5 +208,5 @@ async def cart_remove_handler(callback: CallbackQuery, pool: asyncpg.Pool, state
     if not items:
         await callback.message.edit_text(texts.get("cart.empty"), reply_markup=_empty_cart_kb(in_booking, in_change))
     else:
-        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking, in_change))
+        await callback.message.edit_text(cart_text(items), reply_markup=cart_kb(items, in_booking, in_change))
     await callback.answer("🗑️ Видалено")

@@ -26,7 +26,7 @@ from app.keyboards.booking_kb import (
     add_service_categories_kb,
 )
 from app.keyboards.main_menu import main_menu_kb
-from app.handlers._utils import delete_after, fmt_date, services_lines, confirmation_text, PHONE_RE
+from app.handlers._utils import delete_after, fmt_date, services_lines, confirmation_text, cart_text, PHONE_RE
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -358,7 +358,7 @@ async def booking_view_cart(callback: CallbackQuery, pool: asyncpg.Pool) -> None
             ]),
         )
     else:
-        await callback.message.edit_text(_cart_text(items), reply_markup=cart_kb(items, in_booking=True))
+        await callback.message.edit_text(cart_text(items), reply_markup=cart_kb(items, in_booking=True))
     await callback.answer()
 
 
