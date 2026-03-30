@@ -25,15 +25,31 @@ class TestServicesLines:
         assert any("150" in l and "4" in l for l in lines)
         assert any("600" in l for l in lines)  # 150 * 4 = 600
 
-    def test_entry_tariff_in_total(self):
+    def test_entry_tariff_only(self):
+        """Empty cart + entry_rate — повинна показати тариф, не 'послуги не обрані'."""
         lines = services_lines([], entry_rate=200, children_count=3)
+        assert "\nПослуги не обрані" not in "\n".join(lines)
         assert any("200" in l for l in lines)
         assert any("600" in l for l in lines)  # 200 * 3
+
+    def test_entry_tariff_plus_service(self):
+        """Тариф входу + послуга — total має враховувати обидва."""
+        items = [make_item("Торт", price=500, quantity=1)]
+        lines = services_lines(items, entry_rate=300, children_count=2)
+        # entry: 300*2=600, service: 500 → total: 1100
+        assert any("1100" in l for l in lines)
 
     def test_total_shown(self):
         items = [make_item("Послуга", price=500, quantity=2)]
         lines = services_lines(items)
         assert any("1000" in l for l in lines)  # 500 * 2
+
+    def test_service_no_price(self):
+        """Послуга без ціни — показується без суми."""
+        items = [make_item("Включено", price=None, quantity=1)]
+        lines = services_lines(items)
+        assert any("Включено" in l for l in lines)
+        assert not any("💰" in l for l in lines)  # total = 0, not shown
 
 
 class TestConfirmationText:

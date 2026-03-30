@@ -53,7 +53,12 @@ async def _show_service_detail_impl(callback: CallbackQuery, pool: asyncpg.Pool,
             reply_markup=subcategories_kb(children, category_type, from_booking),
         )
     else:
-        price_line = f"\n💰 Ціна: {service['price']:.0f} грн" if service['price'] else ""
+        if service['price_per_child']:
+            price_line = f"\n💰 Ціна: {service['price_per_child']:.0f} грн/дитина"
+        elif service['price']:
+            price_line = f"\n💰 Ціна: {service['price']:.0f} грн"
+        else:
+            price_line = ""
         description = f"\n📝 {service['description']}" if service['description'] else ""
         text = f"<b>{service['name']}</b>{price_line}{description}"
         file_path = "/app" + service['photo_url'] if service['photo_url'] else None
