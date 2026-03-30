@@ -81,7 +81,8 @@ async def _ask_children_count(callback: CallbackQuery, state: FSMContext,
     cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="❌ Скасувати", callback_data="cart:cancel_qty")]
     ])
-    await callback.message.edit_text(
+    await edit_or_replace(
+        callback,
         f"👶 Для скількох дітей додати «{service_name}»?\n\nВведіть кількість:",
         reply_markup=cancel_kb,
     )

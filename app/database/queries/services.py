@@ -4,7 +4,7 @@ import asyncpg
 async def get_services_by_type(pool: asyncpg.Pool, category_type: str) -> list[asyncpg.Record]:
     return await pool.fetch(
         """
-        SELECT s.id, s.name, s.price, s.description
+        SELECT s.id, s.name, s.price, s.price_per_child, s.description
         FROM services s
         JOIN categories c ON s.category_id = c.id
         WHERE c.type = $1 AND s.is_active = true AND s.parent_id IS NULL
@@ -17,7 +17,7 @@ async def get_services_by_type(pool: asyncpg.Pool, category_type: str) -> list[a
 async def get_child_services(pool: asyncpg.Pool, parent_id: int) -> list[asyncpg.Record]:
     return await pool.fetch(
         """
-        SELECT id, name, price, description
+        SELECT id, name, price, price_per_child, description
         FROM services
         WHERE parent_id = $1 AND is_active = true
         ORDER BY sort_order NULLS LAST, id

@@ -3,7 +3,11 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 def _service_label(s: asyncpg.Record) -> str:
-    return f"{s['name']} — {s['price']:.0f} грн" if s['price'] else s['name']
+    if s['price_per_child']:
+        return f"{s['name']} — {s['price_per_child']:.0f} грн/дит."
+    if s['price']:
+        return f"{s['name']} — {s['price']:.0f} грн"
+    return s['name']
 
 
 def services_kb(services: list[asyncpg.Record], category_type: str, from_booking: bool = False) -> InlineKeyboardMarkup:
