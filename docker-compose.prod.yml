@@ -16,6 +16,21 @@ services:
       retries: 5
     restart: unless-stopped
 
+  migrate:
+    image: postgres:16
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+    volumes:
+      - ./migrations:/migrations:ro
+      - ./docker-migrate.sh:/docker-migrate.sh:ro
+    command: ["bash", "/docker-migrate.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   bot:
     build: .
     container_name: rio_bot
@@ -28,6 +43,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   admin:
@@ -42,6 +59,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:
