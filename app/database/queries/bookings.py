@@ -28,20 +28,31 @@ async def get_user_bookings(
 ) -> list[asyncpg.Record]:
     return await pool.fetch(
         """
-        SELECT b.id, b.booking_date, b.status, b.children_count,
-               COALESCE(
-                   string_agg(bi.service_name, ', ' ORDER BY bi.id),
-                   ''
-               ) AS services_summary
-        FROM bookings b
-        LEFT JOIN booking_items bi ON bi.booking_id = b.id
-        WHERE b.telegram_id = $1
-        GROUP BY b.id
-        ORDER BY b.booking_date DESC
+        SELECT id, booking_date, status, children_count, adults_count,
+               birthday_person_name, birthday_person_date
+        FROM bookings
+        WHERE telegram_id = $1
+        ORDER BY booking_date DESC
         LIMIT $2
         """,
         telegram_id,
         limit,
+    )
+
+
+async def get_booking_items_for_bookings(
+    pool: asyncpg.Pool, booking_ids: list[int]
+) -> list[asyncpg.Record]:
+    return await pool.fetch(
+        """
+        SELECT bi.booking_id, bi.service_id, bi.service_name AS name,
+               bi.price, bi.quantity, s.price_per_child
+        FROM booking_items bi
+        LEFT JOIN services s ON s.id = bi.service_id
+        WHERE bi.booking_id = ANY($1)
+        ORDER BY bi.booking_id, bi.id
+        """,
+        booking_ids,
     )
 
 

@@ -131,3 +131,18 @@ async def admin_settings(message: Message, bot: Bot) -> None:
     if not await is_admin(bot, message.from_user.id):
         return
     asyncio.create_task(_answer_autodelete(message, "⚙ Налаштування — в розробці 🔧"))
+
+
+@router.message(Command("test_notify"))
+async def cmd_test_notify(message: Message, bot: Bot) -> None:
+    """Sends a test message to the admin chat and reports the result back."""
+    chat_id = _config.admin_chat_id
+    if not chat_id:
+        await message.answer("⚠️ ADMIN_CHAT_ID не налаштовано (.env)")
+        return
+    try:
+        await bot.send_message(chat_id, f"✅ Тест сповіщень — бот працює\n(від @{message.from_user.username or message.from_user.id})", parse_mode=None)
+        await message.answer(f"✅ Повідомлення успішно надіслано в чат {chat_id}")
+    except Exception as e:
+        logger.error("test_notify failed for chat %s", chat_id, exc_info=True)
+        await message.answer(f"❌ Не вдалось надіслати в чат {chat_id}:\n<code>{e}</code>")

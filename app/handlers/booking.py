@@ -15,7 +15,8 @@ from aiogram.types import (
 from app import texts
 from app.config import load_config
 from app.database.queries import (
-    cart_get, cart_add, cart_clear, create_booking, create_booking_items, get_user_bookings,
+    cart_get, cart_add, cart_clear, create_booking, create_booking_items,
+    get_user_bookings, get_booking_items_for_bookings,
     get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
     get_booking_by_id, update_booking_status, get_booking_items,
     create_change_request, create_change_items, get_change_request, get_pending_change_for_booking,
@@ -412,6 +413,7 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
         )
         return
 
+    entry_rate = 0
     try:
         booking_date = dt_date.fromisoformat(data["booking_date"])
         entry_rate = await get_entry_tariff(pool, booking_date)
@@ -431,12 +433,12 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
 
     await state.clear()
 
+    asyncio.create_task(_notify_admin(bot, booking_id, data, cart_items, entry_rate))
+
     await callback.message.edit_text(
         texts.get("booking.success", id=booking_id),
         reply_markup=main_menu_kb(),
     )
-
-    await _notify_admin(bot, booking_id, data, cart_items, entry_rate)
 
 
 # --- Cancel ---
@@ -569,8 +571,8 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list,
     if cart_items:
         for item in cart_items:
             qty = item["quantity"]
-            ppc = item.get("price_per_child")
-            price = item["price"]
+            ppc = float(item.get("price_per_child") or 0)
+            price = float(item["price"] or 0)
             if ppc:
                 subtotal = ppc * qty
                 total += subtotal
@@ -590,8 +592,9 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list,
     ]])
     try:
         await bot.send_message(_config.admin_chat_id, "\n".join(lines), parse_mode=None, reply_markup=kb)
-    except Exception as e:
-        logger.error("Failed to notify admin: %s", e)
+        logger.info("Admin notified: booking #%s → chat %s", booking_id, _config.admin_chat_id)
+    except Exception:
+        logger.error("Failed to notify admin about booking #%s (chat %s)", booking_id, _config.admin_chat_id, exc_info=True)
 
 
 async def _notify_admin_cancelled(bot: Bot, booking: dict, reason: str = "") -> None:
@@ -609,8 +612,8 @@ async def _notify_admin_cancelled(bot: Bot, booking: dict, reason: str = "") -> 
         text += f"\n💬 Причина: {reason}"
     try:
         await bot.send_message(_config.admin_chat_id, text, parse_mode=None)
-    except Exception as e:
-        logger.error("Failed to notify admin about cancellation: %s", e)
+    except Exception:
+        logger.error("Failed to notify admin about cancellation (chat %s)", _config.admin_chat_id, exc_info=True)
 
 
 async def _notify_client_from_bot(bot: Bot, telegram_id: int, booking_id: int, booking_date, new_status: str) -> None:
@@ -638,8 +641,8 @@ async def _notify_admin_inquiry(
     )
     try:
         await bot.send_message(_config.admin_chat_id, text, parse_mode=None)
-    except Exception as e:
-        logger.error("Failed to notify admin about inquiry: %s", e)
+    except Exception:
+        logger.error("Failed to notify admin about inquiry (chat %s)", _config.admin_chat_id, exc_info=True)
 
 
 # --- My bookings ---
@@ -683,17 +686,65 @@ def _my_bookings_kb(bookings: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _my_bookings_text(bookings: list) -> str:
+def _booking_items_lines(items: list) -> tuple[list[str], float]:
+    """Returns (display lines, total) for a list of booking_items records."""
+    lines = []
+    total = 0.0
+    for item in items:
+        name = item["name"]
+        price = float(item["price"] or 0)
+        qty = item["quantity"]
+        ppc = item.get("price_per_child")
+
+        if item["service_id"] is None:
+            # Entry fee — price is already total (rate × children)
+            lines.append(f"🎟 {name} — {price:.0f} грн")
+            total += price
+        elif ppc:
+            # price_per_child service — price already = ppc × qty
+            ppc_f = float(ppc)
+            lines.append(f"• {name} — {ppc_f:.0f} грн/дитина × {qty} = {price:.0f} грн")
+            total += price
+        elif price:
+            if qty > 1:
+                subtotal = price * qty
+                lines.append(f"• {name} — {price:.0f} грн × {qty} = {subtotal:.0f} грн")
+                total += subtotal
+            else:
+                lines.append(f"• {name} — {price:.0f} грн")
+                total += price
+        else:
+            lines.append(f"• {name}")
+    return lines, total
+
+
+def _my_bookings_text(bookings: list, items_by_id: dict | None = None) -> str:
     if not bookings:
         return "📋 У вас ще немає бронювань."
+    if items_by_id is None:
+        items_by_id = {}
     lines = ["📋 <b>Ваші бронювання:</b>\n"]
     for b in bookings:
         date_str = b["booking_date"].strftime("%d.%m.%Y")
         status = _STATUS_LABELS.get(b["status"], b["status"])
         lines.append(f"<b>#{b['id']}</b>  📅 {date_str}  {status}")
         lines.append(f"👶 Дітей: {b['children_count']}")
-        if b["services_summary"]:
-            lines.append(f"🗂 {b['services_summary']}")
+        adults = b.get("adults_count") or 0
+        if adults:
+            lines.append(f"👨 Дорослих: {adults}")
+        birthday_name = b.get("birthday_person_name") or ""
+        if birthday_name:
+            bday_date = b.get("birthday_person_date")
+            bday_str = bday_date.strftime("%d.%m.%Y") if bday_date else ""
+            lines.append(f"🎂 Іменинник: {birthday_name}" + (f" ({bday_str})" if bday_str else ""))
+        booking_items = items_by_id.get(b["id"], [])
+        if booking_items:
+            item_lines, total = _booking_items_lines(booking_items)
+            lines.extend(item_lines)
+            if total:
+                lines.append(f"💰 Разом: {total:.0f} грн")
+        else:
+            lines.append("🗂 Послуги не обрані")
         lines.append("")
     return "\n".join(lines).strip()
 
@@ -701,8 +752,14 @@ def _my_bookings_text(bookings: list) -> str:
 @router.callback_query(F.data == "booking:my")
 async def my_bookings(callback: CallbackQuery, pool: asyncpg.Pool) -> None:
     bookings = await get_user_bookings(pool, callback.from_user.id)
+    items_by_id: dict = {}
+    if bookings:
+        booking_ids = [b["id"] for b in bookings]
+        all_items = await get_booking_items_for_bookings(pool, booking_ids)
+        for item in all_items:
+            items_by_id.setdefault(item["booking_id"], []).append(item)
     await callback.message.edit_text(
-        _my_bookings_text(bookings),
+        _my_bookings_text(bookings, items_by_id),
         reply_markup=_my_bookings_kb(bookings),
     )
     await callback.answer()
@@ -1033,8 +1090,14 @@ async def _notify_admin_change_request(
         lines.append("\nНові послуги:")
         total = 0
         for item in cart_items:
-            price, qty = item["price"], item["quantity"]
-            if price:
+            qty = item["quantity"]
+            ppc = float(item.get("price_per_child") or 0)
+            price = float(item["price"] or 0)
+            if ppc:
+                subtotal = ppc * qty
+                total += subtotal
+                lines.append(f"• {item['name']} — {ppc:.0f} грн/дитина × {qty} = {subtotal:.0f} грн")
+            elif price:
                 total += price * qty
                 lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
             else:
@@ -1049,8 +1112,8 @@ async def _notify_admin_change_request(
     ]])
     try:
         await bot.send_message(_config.admin_chat_id, "\n".join(lines), parse_mode=None, reply_markup=kb)
-    except Exception as e:
-        logger.error("Failed to notify admin about change request: %s", e)
+    except Exception:
+        logger.error("Failed to notify admin about change request (chat %s)", _config.admin_chat_id, exc_info=True)
 
 
 async def _notify_client_change_result(

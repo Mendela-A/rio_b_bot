@@ -24,8 +24,8 @@ def build_notify_lines(data: dict, cart_items: list, entry_rate: float = 0) -> l
     if cart_items:
         for item in cart_items:
             qty = item["quantity"]
-            ppc = item.get("price_per_child")
-            price = item["price"]
+            ppc = float(item.get("price_per_child") or 0)
+            price = float(item["price"] or 0)
             if ppc:
                 subtotal = ppc * qty
                 total += subtotal
@@ -93,3 +93,22 @@ class TestNotifyAdminContent:
         lines = build_notify_lines(make_data(), [make_item("Включено")], entry_rate=0)
         text = "\n".join(lines)
         assert "💰" not in text
+
+    def test_decimal_ppc_with_float_entry_rate_no_typeerror(self):
+        """Реальний кейс: entry_rate=float, ppc=Decimal з БД — TypeError без float()."""
+        from decimal import Decimal
+        item = make_item("Аніматор", price_per_child=Decimal("150"), quantity=3)
+        # entry_rate робить total=float, потім Decimal ppc → TypeError до фіксу
+        lines = build_notify_lines(make_data(children_count=3), [item], entry_rate=300.0)
+        text = "\n".join(lines)
+        assert "150" in text
+        assert "1350" in text  # 300*3 + 150*3 = 900 + 450
+
+    def test_decimal_price_with_float_entry_rate_no_typeerror(self):
+        """price=Decimal з БД при наявному entry_rate=float."""
+        from decimal import Decimal
+        item = make_item("Торт", price=Decimal("500"), quantity=1)
+        lines = build_notify_lines(make_data(children_count=2), [item], entry_rate=200.0)
+        text = "\n".join(lines)
+        assert "500" in text
+        assert "900" in text  # 200*2 + 500
