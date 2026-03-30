@@ -44,7 +44,7 @@ CREATE TABLE bookings (
     phone TEXT NOT NULL,
     children_count INT NOT NULL,
     booking_date DATE NOT NULL,
-    status TEXT DEFAULT 'new',
+    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'confirmed', 'cancelled')),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -121,7 +121,7 @@ CREATE TABLE booking_change_requests (
     booking_id INT REFERENCES bookings(id) ON DELETE CASCADE,
     proposed_date DATE NOT NULL,
     proposed_children_count INT NOT NULL,
-    status TEXT DEFAULT 'pending',
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
