@@ -2,6 +2,7 @@ import io
 import logging
 import os
 import subprocess
+import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -67,6 +68,40 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class LoginRateLimitMiddleware(BaseHTTPMiddleware):
+    """5 failed login attempts per IP per minute → 429."""
+
+    def __init__(self, app, max_attempts: int = 5, window: int = 60) -> None:
+        super().__init__(app)
+        self._max = max_attempts
+        self._window = window
+        self._attempts: dict[str, list[float]] = {}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "POST" and request.url.path.rstrip("/") in ("/admin/login", "/admin/login/"):
+            ip = (request.client.host if request.client else None) or "unknown"
+            now = time.time()
+            window_start = now - self._window
+            attempts = [t for t in self._attempts.get(ip, []) if t > window_start]
+            if len(attempts) >= self._max:
+                return Response("Забагато спроб входу. Спробуйте через хвилину.", status_code=429)
+            attempts.append(now)
+            self._attempts[ip] = attempts
+        return await call_next(request)
+
+
+class CsrfOriginMiddleware(BaseHTTPMiddleware):
+    """Verify Origin/Referer matches Host for custom POST /api/* endpoints."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "POST" and request.url.path.startswith("/api/"):
+            host = request.headers.get("host", "")
+            origin = request.headers.get("origin") or request.headers.get("referer", "")
+            if host and origin and host not in origin:
+                return JSONResponse({"error": "CSRF check failed"}, status_code=403)
+        return await call_next(request)
+
+
 class DashboardView(CustomView):
     def __init__(self) -> None:
         super().__init__(
@@ -93,6 +128,8 @@ class DashboardView(CustomView):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(LoginRateLimitMiddleware)
+app.add_middleware(CsrfOriginMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="strict", max_age=86400)
 app.mount(
     "/uploads",
@@ -234,7 +271,7 @@ async def move_category(request: Request):
 
     async with db.pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id FROM categories ORDER BY sort_order NULLS LAST, id"
+            "SELECT id, sort_order FROM categories ORDER BY sort_order NULLS LAST, id"
         )
         ids = [r["id"] for r in rows]
         idx = ids.index(cat_id)
@@ -246,10 +283,10 @@ async def move_category(request: Request):
 
         swap_idx = idx - 1 if direction == "up" else idx + 1
         async with conn.transaction():
-            for i, r in enumerate(rows):
-                await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", i + 1, r["id"])
-            await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", swap_idx + 1, cat_id)
-            await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", idx + 1, ids[swap_idx])
+            a_sort = rows[idx]["sort_order"] or (idx + 1)
+            b_sort = rows[swap_idx]["sort_order"] or (swap_idx + 1)
+            await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", b_sort, cat_id)
+            await conn.execute("UPDATE categories SET sort_order=$1 WHERE id=$2", a_sort, ids[swap_idx])
 
     return JSONResponse({"ok": True})
 
@@ -272,7 +309,7 @@ async def move_service(request: Request):
             return JSONResponse({"error": "not found"}, status_code=404)
 
         siblings = await conn.fetch(
-            """SELECT id FROM services
+            """SELECT id, sort_order FROM services
                WHERE category_id=$1 AND parent_id IS NOT DISTINCT FROM $2
                ORDER BY sort_order NULLS LAST, id""",
             svc["category_id"], svc["parent_id"],
@@ -287,9 +324,9 @@ async def move_service(request: Request):
 
         swap_idx = idx - 1 if direction == "up" else idx + 1
         async with conn.transaction():
-            for i, s in enumerate(siblings):
-                await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", i + 1, s["id"])
-            await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", swap_idx + 1, service_id)
-            await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", idx + 1, ids[swap_idx])
+            a_sort = siblings[idx]["sort_order"] or (idx + 1)
+            b_sort = siblings[swap_idx]["sort_order"] or (swap_idx + 1)
+            await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", b_sort, service_id)
+            await conn.execute("UPDATE services SET sort_order=$1 WHERE id=$2", a_sort, ids[swap_idx])
 
     return JSONResponse({"ok": True})

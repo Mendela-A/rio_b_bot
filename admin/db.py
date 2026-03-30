@@ -26,17 +26,24 @@ async def init_pool() -> None:
 async def ensure_default_admin() -> None:
     from shared import pwd_ctx
     username = os.getenv("ADMIN_USER", "admin")
-    password = os.getenv("ADMIN_PASSWORD", "admin")
     async with pool.acquire() as conn:
-        hashed = pwd_ctx.hash(password)
-        await conn.execute(
-            """
-            INSERT INTO admin_users (username, password_hash, is_superadmin)
-            VALUES ($1, $2, TRUE)
-            ON CONFLICT (username) DO UPDATE SET is_superadmin = TRUE
-            """,
-            username, hashed,
+        exists = await conn.fetchval(
+            "SELECT 1 FROM admin_users WHERE username=$1", username
         )
+        if exists:
+            await conn.execute(
+                "UPDATE admin_users SET is_superadmin=TRUE WHERE username=$1", username
+            )
+        else:
+            password = os.getenv("ADMIN_PASSWORD", "admin")
+            hashed = pwd_ctx.hash(password)
+            await conn.execute(
+                """
+                INSERT INTO admin_users (username, password_hash, is_superadmin)
+                VALUES ($1, $2, TRUE)
+                """,
+                username, hashed,
+            )
 
 
 async def close_pool() -> None:

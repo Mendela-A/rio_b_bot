@@ -35,7 +35,7 @@ class ServicesEditorView(CustomView):
             )
             services = await conn.fetch(
                 """
-                SELECT id, category_id, parent_id, name, price, description, is_active, photo_url, sort_order
+                SELECT id, category_id, parent_id, name, price, price_per_child, description, is_active, photo_url, sort_order
                 FROM services
                 ORDER BY category_id, parent_id NULLS FIRST, sort_order NULLS LAST, id
                 """
@@ -86,6 +86,7 @@ class ServicesEditorView(CustomView):
         parent_id = _int_or_none(form.get("parent_id"))
         name = form["name"].strip()
         price = _float_or_none(form.get("price"))
+        price_per_child = _float_or_none(form.get("price_per_child"))
         description = form.get("description", "").strip() or None
         is_active = form.get("is_active") == "on"
         photo_url = form.get("photo_url") or None
@@ -94,10 +95,10 @@ class ServicesEditorView(CustomView):
             if sid == 0:
                 await conn.execute(
                     """
-                    INSERT INTO services (category_id, parent_id, name, price, description, is_active, photo_url)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    INSERT INTO services (category_id, parent_id, name, price, price_per_child, description, is_active, photo_url)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     """,
-                    category_id, parent_id, name, price, description, is_active, photo_url,
+                    category_id, parent_id, name, price, price_per_child, description, is_active, photo_url,
                 )
             else:
                 old = await conn.fetchrow("SELECT photo_url FROM services WHERE id=$1", sid)
@@ -109,10 +110,10 @@ class ServicesEditorView(CustomView):
                 await conn.execute(
                     """
                     UPDATE services
-                    SET name=$1, price=$2, description=$3, is_active=$4, photo_url=$5
-                    WHERE id=$6
+                    SET name=$1, price=$2, price_per_child=$3, description=$4, is_active=$5, photo_url=$6
+                    WHERE id=$7
                     """,
-                    name, price, description, is_active, photo_url, sid,
+                    name, price, price_per_child, description, is_active, photo_url, sid,
                 )
 
     async def _delete(self, service_id: int) -> None:

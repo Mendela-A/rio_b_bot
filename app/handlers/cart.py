@@ -9,8 +9,11 @@ from app.database.queries import (
     cart_add, cart_get, cart_remove, get_services_by_type,
     get_entry_tariff, get_service_by_id,
 )
-from app.keyboards.booking_kb import cart_kb
+from app.keyboards.booking_kb import cart_kb, confirm_booking_kb
+from app.keyboards.main_menu import main_menu_kb
 from app.keyboards.services_kb import services_kb
+from app.handlers._utils import edit_or_replace, confirmation_text
+from app.handlers.booking import BookingStates
 
 router = Router()
 
@@ -99,10 +102,6 @@ async def cart_add_booking_handler(callback: CallbackQuery, pool: asyncpg.Pool, 
     await cart_add(pool, callback.from_user.id, service_id)
     await callback.answer(texts.get("cart.added"))
 
-    from app.handlers._utils import edit_or_replace
-    from app.keyboards.booking_kb import confirm_booking_kb
-    from app.keyboards.main_menu import main_menu_kb
-    from app.handlers.booking import _confirmation_text
     data = await state.get_data()
     if not data.get("full_name"):
         await edit_or_replace(callback, "Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb())
@@ -110,7 +109,7 @@ async def cart_add_booking_handler(callback: CallbackQuery, pool: asyncpg.Pool, 
         return
     cart_items = await cart_get(pool, callback.from_user.id)
     entry_rate = await get_entry_tariff(pool, data["booking_date"])
-    await edit_or_replace(callback, _confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
+    await edit_or_replace(callback, confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
 
 
 @router.callback_query(F.data.startswith("cart:add:"))
@@ -130,7 +129,6 @@ async def cart_add_handler(callback: CallbackQuery, pool: asyncpg.Pool, state: F
     items = await get_services_by_type(pool, category_type)
     label = _CATEGORY_LABELS.get(category_type, "Послуги")
     text = f"{label}\n\nОберіть послугу:" if items else f"{label}\n\nПослуги тимчасово недоступні."
-    from app.handlers._utils import edit_or_replace
     await edit_or_replace(callback, text, reply_markup=services_kb(items, category_type))
 
 
@@ -144,21 +142,17 @@ async def cart_cancel_qty(callback: CallbackQuery, state: FSMContext, pool: asyn
                           if k not in ("pending_service_id", "pending_category", "pending_in_booking")})
 
     if in_booking:
-        from app.handlers._utils import edit_or_replace
-        from app.keyboards.booking_kb import confirm_booking_kb
-        from app.handlers.booking import _confirmation_text
         await state.set_state(None)
         fresh_data = await state.get_data()
         cart_items = await cart_get(pool, callback.from_user.id)
         entry_rate = await get_entry_tariff(pool, fresh_data.get("booking_date", ""))
-        await edit_or_replace(callback, _confirmation_text(fresh_data, cart_items, entry_rate),
+        await edit_or_replace(callback, confirmation_text(fresh_data, cart_items, entry_rate),
                               reply_markup=confirm_booking_kb())
     else:
         await state.set_state(None)
         items = await get_services_by_type(pool, category_type)
         label = _CATEGORY_LABELS.get(category_type, "Послуги")
         text = f"{label}\n\nОберіть послугу:" if items else f"{label}\n\nПослуги тимчасово недоступні."
-        from app.handlers._utils import edit_or_replace
         await edit_or_replace(callback, text, reply_markup=services_kb(items, category_type))
     await callback.answer()
 
@@ -187,13 +181,11 @@ async def cart_service_quantity_handler(message: Message, pool: asyncpg.Pool, st
     await state.set_data(new_data)
 
     if in_booking:
-        from app.handlers.booking import BookingStates, _confirmation_text
-        from app.keyboards.booking_kb import confirm_booking_kb
         await state.set_state(BookingStates.waiting_date)
         cart_items = await cart_get(pool, message.from_user.id)
         entry_rate = await get_entry_tariff(pool, new_data.get("booking_date", ""))
         await message.answer(
-            _confirmation_text(new_data, cart_items, entry_rate),
+            confirmation_text(new_data, cart_items, entry_rate),
             reply_markup=confirm_booking_kb(),
         )
     else:
