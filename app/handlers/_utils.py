@@ -61,7 +61,7 @@ def confirmation_text(data: dict, cart_items: list, entry_rate: float = 0) -> st
         f"📱 {data['phone']}",
         f"👶 Дітей: {data['children_count']}",
         f"👨 Дорослих: {data.get('adults_count', '—')}",
-        f"🎂 Іменинник: {data.get('birthday_person_name', '—')}"
+        f"🎂 Іменинник: {data.get('birthday_person_name') or '—'}"
         + (f" ({fmt_date(data['birthday_person_date'])})" if data.get('birthday_person_date') else ""),
         f"📆 Дата: {fmt_date(data['booking_date'])}",
     ]
