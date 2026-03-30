@@ -37,8 +37,8 @@ def services_lines(cart_items: list, entry_rate: float = 0, children_count: int 
     else:
         for item in cart_items:
             qty = item["quantity"]
-            ppc = item.get("price_per_child")
-            price = item["price"]
+            ppc = float(item.get("price_per_child") or 0)
+            price = float(item["price"] or 0)
             if ppc:
                 subtotal = ppc * qty
                 total += subtotal

@@ -2,6 +2,7 @@
 Тести для price_per_child — охоплює edge cases у services_lines та _float_or_none.
 Без aiogram/asyncpg/starlette — чисті функції.
 """
+from decimal import Decimal
 import pytest
 
 from app.handlers._utils import services_lines
@@ -123,3 +124,33 @@ class TestPpcLineFormat:
         items = [item("Шоу", price_per_child=75, qty=5)]
         lines = services_lines(items)
         assert any("грн/дитина" in l for l in lines)
+
+
+# ─── Decimal з asyncpg (реальний тип з БД) ───────────────────────────────────
+
+class TestDecimalFromDb:
+    """asyncpg повертає NUMERIC як decimal.Decimal, а не float.
+    Раніше це ламало services_lines з TypeError при додаванні до total (float)."""
+
+    def test_ppc_as_decimal(self):
+        """price_per_child=Decimal('150') — не кидає TypeError."""
+        items = [{"name": "VR", "price": None, "price_per_child": Decimal("150"), "quantity": 3}]
+        lines = services_lines(items)
+        text = "\n".join(lines)
+        assert "150" in text
+        assert "450" in text  # 150 * 3
+
+    def test_price_as_decimal(self):
+        """price=Decimal('500') — не кидає TypeError."""
+        items = [{"name": "Торт", "price": Decimal("500"), "price_per_child": None, "quantity": 2}]
+        lines = services_lines(items)
+        text = "\n".join(lines)
+        assert "💰 Разом: 1000" in text
+
+    def test_decimal_with_entry_rate(self):
+        """Decimal ppc + float entry_rate — total рахується правильно."""
+        items = [{"name": "VR", "price": None, "price_per_child": Decimal("200"), "quantity": 2}]
+        lines = services_lines(items, entry_rate=300.0, children_count=3)
+        text = "\n".join(lines)
+        # 300*3=900 + 200*2=400 → 1300
+        assert "1300" in text
