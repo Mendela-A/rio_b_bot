@@ -436,7 +436,7 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
         reply_markup=main_menu_kb(),
     )
 
-    await _notify_admin(bot, booking_id, data, cart_items)
+    await _notify_admin(bot, booking_id, data, cart_items, entry_rate)
 
 
 # --- Cancel ---
@@ -546,22 +546,27 @@ _services_lines = services_lines
 _confirmation_text = confirmation_text
 
 
-async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list) -> None:
+async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list, entry_rate: float = 0) -> None:
     if not _config.admin_chat_id:
         return
+    children_count = data.get("children_count", 0)
     lines = [
         f"📅 Нове бронювання #{booking_id}",
         f"👤 {data['full_name']}",
         f"📱 {data['phone']}",
-        f"👶 Дітей: {data['children_count']}",
+        f"👶 Дітей: {children_count}",
         f"👨 Дорослих: {data.get('adults_count', '—')}",
         f"🎂 Іменинник: {data.get('birthday_person_name', '—')}"
         + (f" ({_fmt_date(data['birthday_person_date'])})" if data.get('birthday_person_date') else ""),
         f"📆 Дата: {_fmt_date(data['booking_date'])}",
     ]
+    lines.append("\nВартість:")
+    total = 0
+    if entry_rate and children_count:
+        entry_total = entry_rate * children_count
+        total += entry_total
+        lines.append(f"🎟 Вхід: {entry_rate:.0f} грн × {children_count} дітей = {entry_total:.0f} грн")
     if cart_items:
-        lines.append("\nПослуги:")
-        total = 0
         for item in cart_items:
             qty = item["quantity"]
             ppc = item.get("price_per_child")
@@ -575,10 +580,10 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list)
                 lines.append(f"• {item['name']} — {price:.0f} грн × {qty}")
             else:
                 lines.append(f"• {item['name']} × {qty}")
-        if total:
-            lines.append(f"\n💰 Разом: {total:.0f} грн")
-    else:
-        lines.append("\nПослуги не обрані")
+    if not entry_rate and not cart_items:
+        lines.append("Послуги не обрані")
+    if total:
+        lines.append(f"\n💰 Разом: {total:.0f} грн")
     kb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="✅ Підтвердити", callback_data=f"adm:ok:{booking_id}"),
         InlineKeyboardButton(text="❌ Відхилити",   callback_data=f"adm:no:{booking_id}"),
