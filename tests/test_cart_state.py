@@ -1,11 +1,10 @@
 """
-Тести для _state_flags() та _empty_cart_kb() з cart.py.
-
-_state_flags() — чиста функція: визначає чи юзер у BookingStates / ChangeStates
-_empty_cart_kb() — чиста функція: повертає правильну клавіатуру залежно від стану
+Тести для _state_flags(), _empty_cart_kb() з cart.py
+та confirm_booking_kb() з keyboards/booking_kb.py.
 """
 import pytest
 from app.handlers.cart import _state_flags, _empty_cart_kb
+from app.keyboards.booking_kb import confirm_booking_kb
 
 
 class TestStateFlags:
@@ -80,3 +79,45 @@ class TestEmptyCartKb:
             kb = _empty_cart_kb(in_booking=in_booking, in_change=in_change)
             datas = self._callback_datas(kb)
             assert "main_menu" in datas
+
+
+class TestConfirmBookingKb:
+    def _cart_button_text(self, kb):
+        for row in kb.inline_keyboard:
+            for btn in row:
+                if "cart" in btn.callback_data or "кошик" in btn.text.lower():
+                    return btn.text
+        return None
+
+    def test_no_items_shows_empty(self):
+        kb = confirm_booking_kb(cart_items=None)
+        text = self._cart_button_text(kb)
+        assert text == "🛒 Кошик порожній"
+
+    def test_empty_list_shows_empty(self):
+        kb = confirm_booking_kb(cart_items=[])
+        text = self._cart_button_text(kb)
+        assert text == "🛒 Кошик порожній"
+
+    def test_one_item_shows_count(self):
+        kb = confirm_booking_kb(cart_items=[{"name": "Торт"}])
+        text = self._cart_button_text(kb)
+        assert "(1)" in text
+
+    def test_three_items_shows_count(self):
+        items = [{"name": f"Послуга {i}"} for i in range(3)]
+        kb = confirm_booking_kb(cart_items=items)
+        text = self._cart_button_text(kb)
+        assert "(3)" in text
+
+    def test_confirm_button_always_present(self):
+        kb = confirm_booking_kb(cart_items=None)
+        datas = [btn.callback_data for row in kb.inline_keyboard for btn in row]
+        assert "booking:confirm" in datas
+
+    def test_cart_callback_data_unchanged(self):
+        kb = confirm_booking_kb(cart_items=[{"name": "Торт"}])
+        for row in kb.inline_keyboard:
+            for btn in row:
+                if "(1)" in btn.text:
+                    assert btn.callback_data == "booking:view_cart"
