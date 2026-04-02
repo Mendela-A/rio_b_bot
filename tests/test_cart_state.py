@@ -121,3 +121,40 @@ class TestConfirmBookingKb:
             for btn in row:
                 if "(1)" in btn.text:
                     assert btn.callback_data == "booking:view_cart"
+
+
+class TestMainMenuKb:
+    from app.keyboards.main_menu import main_menu_kb
+
+    def _cart_btn(self, kb):
+        for row in kb.inline_keyboard:
+            for btn in row:
+                if btn.callback_data == "cart:view":
+                    return btn.text
+        return None
+
+    def test_no_count_default(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb()
+        text = self._cart_btn(kb)
+        assert "(" not in text
+
+    def test_zero_count_no_badge(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(cart_count=0)
+        text = self._cart_btn(kb)
+        assert "(" not in text
+
+    def test_count_shown(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(cart_count=3)
+        text = self._cart_btn(kb)
+        assert "(3)" in text
+
+    def test_cart_callback_unchanged(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(cart_count=5)
+        for row in kb.inline_keyboard:
+            for btn in row:
+                if "(5)" in btn.text:
+                    assert btn.callback_data == "cart:view"
