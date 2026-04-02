@@ -40,11 +40,12 @@ async def create_inquiry(
     phone: str,
     service_id: int,
     service_name: str,
+    children_count: int | None = None,
 ) -> int:
     row = await pool.fetchrow(
         """
-        INSERT INTO inquiries (telegram_id, full_name, phone, service_id, service_name)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO inquiries (telegram_id, full_name, phone, service_id, service_name, children_count)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
         """,
         telegram_id,
@@ -52,5 +53,6 @@ async def create_inquiry(
         phone,
         service_id,
         service_name,
+        children_count,
     )
     return row["id"]

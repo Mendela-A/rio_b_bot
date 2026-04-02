@@ -62,7 +62,7 @@ async def _ask_children_count(callback: CallbackQuery, state: FSMContext,
     ])
     await edit_or_replace(
         callback,
-        f"👶 Для скількох дітей додати «{service_name}»?\n\nВведіть кількість:",
+        f"👶 Для підрахунку суми обраних послуг вкажіть будь ласка кількість діток\n\n«{service_name}»\n\nВведіть кількість:",
         reply_markup=cancel_kb,
     )
     await callback.answer()

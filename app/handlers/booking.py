@@ -47,6 +47,7 @@ class BookingStates(StatesGroup):
     waiting_cancel_reason = State()
     quick_waiting_name = State()
     quick_waiting_phone = State()
+    quick_waiting_children = State()
 
 
 class ChangeStates(StatesGroup):
@@ -458,7 +459,11 @@ async def quick_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.
     service = await get_service_by_id(pool, service_id)
     service_name = service["name"] if service else ""
     await state.set_state(BookingStates.quick_waiting_name)
-    await state.update_data(quick_service_id=service_id, quick_service_name=service_name)
+    await state.update_data(
+        quick_service_id=service_id,
+        quick_service_name=service_name,
+        quick_price_per_child=bool(service and service["price_per_child"]),
+    )
     from app.handlers._utils import edit_or_replace
     msg = await edit_or_replace(
         callback,
@@ -527,6 +532,16 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     service_id = data["quick_service_id"]
     service_name = data["quick_service_name"]
 
+    if data.get("quick_price_per_child"):
+        await state.update_data(quick_phone=phone)
+        await state.set_state(BookingStates.quick_waiting_children)
+        sent = await message.answer(
+            "👶 Для підрахунку суми обраних послуг вкажіть будь ласка кількість діток\n\nВведіть кількість:",
+            reply_markup=cancel_kb(),
+        )
+        await state.update_data(bot_msg_id=sent.message_id)
+        return
+
     inquiry_id = await create_inquiry(pool, message.from_user.id, full_name, phone, service_id, service_name)
     await state.clear()
 
@@ -538,6 +553,50 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     await message.answer("Головне меню:", reply_markup=main_menu_kb())
 
     await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name)
+
+
+@router.message(BookingStates.quick_waiting_children)
+async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: asyncpg.Pool) -> None:
+    data = await state.get_data()
+
+    if message.text == "❌ Скасувати":
+        await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
+        await state.clear()
+        msg = await message.answer("Скасовано.", reply_markup=ReplyKeyboardRemove())
+        asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id))
+        await message.answer("Головне меню:", reply_markup=main_menu_kb())
+        return
+
+    text = (message.text or "").strip()
+    if not text.isdigit() or not (1 <= int(text) <= 50):
+        asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
+        err = await message.answer("⚠️ Введіть число від 1 до 50", reply_markup=cancel_kb())
+        asyncio.create_task(delete_after(bot, message.chat.id, err.message_id))
+        return
+
+    children_count = int(text)
+    await _try_delete(bot, message.chat.id, data.get("bot_msg_id"))
+    asyncio.create_task(delete_after(bot, message.chat.id, message.message_id))
+
+    full_name = data["full_name"]
+    phone = data["quick_phone"]
+    service_id = data["quick_service_id"]
+    service_name = data["quick_service_name"]
+
+    inquiry_id = await create_inquiry(
+        pool, message.from_user.id, full_name, phone, service_id, service_name, children_count
+    )
+    await state.clear()
+
+    msg = await message.answer(
+        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМи зателефонуємо вам найближчим часом.",
+        reply_markup=ReplyKeyboardRemove(),
+    )
+    asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
+    await message.answer("Головне меню:", reply_markup=main_menu_kb())
+
+    await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, children_count)
 
 
 # --- Helpers ---
@@ -629,15 +688,18 @@ async def _notify_client_from_bot(bot: Bot, telegram_id: int, booking_id: int, b
 
 
 async def _notify_admin_inquiry(
-    bot: Bot, inquiry_id: int, full_name: str, phone: str, service_name: str
+    bot: Bot, inquiry_id: int, full_name: str, phone: str, service_name: str,
+    children_count: int | None = None,
 ) -> None:
     if not _config.admin_chat_id:
         return
+    children_line = f"\n👶 Дітей: {children_count}" if children_count is not None else ""
     text = (
         f"⚡ Нова заявка #{inquiry_id}\n"
         f"🎯 {service_name}\n"
         f"👤 {full_name}\n"
         f"📱 {phone}"
+        f"{children_line}"
     )
     try:
         await bot.send_message(_config.admin_chat_id, text, parse_mode=None)
