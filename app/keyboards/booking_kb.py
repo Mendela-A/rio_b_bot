@@ -129,11 +129,13 @@ def confirm_change_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def confirm_booking_kb() -> InlineKeyboardMarkup:
+def confirm_booking_kb(cart_items: list | None = None) -> InlineKeyboardMarkup:
+    n = len(cart_items) if cart_items else 0
+    cart_label = f"🛒 Змінити кошик ({n})" if n else "🛒 Кошик порожній"
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Підтвердити", callback_data="booking:confirm")],
         [InlineKeyboardButton(text="➕ Додати послугу", callback_data="booking:add_service")],
-        [InlineKeyboardButton(text="🛒 Змінити кошик", callback_data="booking:view_cart")],
+        [InlineKeyboardButton(text=cart_label, callback_data="booking:view_cart")],
         [InlineKeyboardButton(text="❌ Скасувати", callback_data="booking:cancel")],
     ])
 

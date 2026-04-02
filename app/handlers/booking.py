@@ -285,7 +285,7 @@ async def booking_date(callback: CallbackQuery, state: FSMContext, pool: asyncpg
     cart_items = await cart_get(pool, callback.from_user.id)
     entry_rate = await get_entry_tariff(pool, raw)
 
-    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
+    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb(cart_items))
     await state.update_data(bot_msg_id=callback.message.message_id)
     await callback.answer()
 
@@ -326,7 +326,7 @@ async def booking_caldate(callback: CallbackQuery, state: FSMContext, pool: asyn
     data = await state.get_data()
     cart_items = await cart_get(pool, callback.from_user.id)
     entry_rate = await get_entry_tariff(pool, raw)
-    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
+    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb(cart_items))
     await state.update_data(bot_msg_id=callback.message.message_id)
     await callback.answer()
 
@@ -376,7 +376,7 @@ async def booking_resume_confirm(callback: CallbackQuery, state: FSMContext, poo
         return
     cart_items = await cart_get(pool, callback.from_user.id)
     entry_rate = await get_entry_tariff(pool, data["booking_date"])
-    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
+    await callback.message.edit_text(_confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb(cart_items))
     await callback.answer()
 
 
@@ -410,7 +410,7 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
         logger.error("create_booking failed: %s", e)
         await callback.message.edit_text(
             "⚠️ Помилка при збереженні бронювання. Спробуйте ще раз.",
-            reply_markup=confirm_booking_kb(),
+            reply_markup=confirm_booking_kb(cart_items),
         )
         return
 

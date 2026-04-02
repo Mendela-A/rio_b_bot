@@ -89,7 +89,7 @@ async def cart_add_booking_handler(callback: CallbackQuery, pool: asyncpg.Pool, 
         return
     cart_items = await cart_get(pool, callback.from_user.id)
     entry_rate = await get_entry_tariff(pool, data["booking_date"])
-    await edit_or_replace(callback, confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb())
+    await edit_or_replace(callback, confirmation_text(data, cart_items, entry_rate), reply_markup=confirm_booking_kb(cart_items))
 
 
 @router.callback_query(F.data.startswith("cart:add:"))
@@ -127,7 +127,7 @@ async def cart_cancel_qty(callback: CallbackQuery, state: FSMContext, pool: asyn
         cart_items = await cart_get(pool, callback.from_user.id)
         entry_rate = await get_entry_tariff(pool, fresh_data.get("booking_date", ""))
         await edit_or_replace(callback, confirmation_text(fresh_data, cart_items, entry_rate),
-                              reply_markup=confirm_booking_kb())
+                              reply_markup=confirm_booking_kb(cart_items))
     else:
         await state.set_state(None)
         items = await get_services_by_type(pool, category_type)
@@ -166,7 +166,7 @@ async def cart_service_quantity_handler(message: Message, pool: asyncpg.Pool, st
         entry_rate = await get_entry_tariff(pool, new_data.get("booking_date", ""))
         await message.answer(
             confirmation_text(new_data, cart_items, entry_rate),
-            reply_markup=confirm_booking_kb(),
+            reply_markup=confirm_booking_kb(cart_items),
         )
     else:
         await state.set_state(None)

@@ -17,6 +17,19 @@ class TestCartText:
         text = cart_text([item("Торт", price=300)])
         assert "🛒" in text
 
+    def test_header_shows_count_one(self):
+        text = cart_text([item("Торт", price=300)])
+        assert "1 послуга" in text
+
+    def test_header_shows_count_two(self):
+        text = cart_text([item("Торт", price=300), item("Кульки", price=50)])
+        assert "2 послуги" in text
+
+    def test_header_shows_count_five(self):
+        items = [item(f"Послуга {i}", price=100) for i in range(5)]
+        text = cart_text(items)
+        assert "5 послуг" in text
+
     def test_regular_price(self):
         text = cart_text([item("Торт", price=500, qty=2)])
         assert "Торт" in text

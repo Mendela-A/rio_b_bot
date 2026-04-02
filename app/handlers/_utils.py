@@ -54,8 +54,16 @@ def services_lines(cart_items: list, entry_rate: float = 0, children_count: int 
     return lines
 
 
+def _plural_services(n: int) -> str:
+    if n == 1:
+        return "1 послуга"
+    if 2 <= n <= 4:
+        return f"{n} послуги"
+    return f"{n} послуг"
+
+
 def cart_text(cart_items: list) -> str:
-    lines = ["🛒 <b>Ваш кошик:</b>\n"]
+    lines = [f"🛒 <b>Ваш кошик ({_plural_services(len(cart_items))}):</b>\n"]
     total = 0
     for item in cart_items:
         qty = item["quantity"]
