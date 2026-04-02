@@ -70,12 +70,19 @@ async def _show_service_detail_impl(callback: CallbackQuery, pool: asyncpg.Pool,
                     await callback.message.edit_reply_markup(reply_markup=None)
                 except Exception:
                     pass
-            await callback.message.answer_photo(
-                FSInputFile(file_path),
-                caption=text,
-                reply_markup=service_detail_kb(category_type, service_id, from_booking),
-                parse_mode="HTML",
-            )
+            try:
+                await callback.message.answer_photo(
+                    FSInputFile(file_path),
+                    caption=text,
+                    reply_markup=service_detail_kb(category_type, service_id, from_booking),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                await callback.message.answer(
+                    text,
+                    reply_markup=service_detail_kb(category_type, service_id, from_booking),
+                    parse_mode="HTML",
+                )
         else:
             await edit_or_replace(callback, text, reply_markup=service_detail_kb(category_type, service_id, from_booking))
 
