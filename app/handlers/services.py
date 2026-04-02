@@ -47,11 +47,36 @@ async def _show_service_detail_impl(callback: CallbackQuery, pool: asyncpg.Pool,
     children = await get_child_services(pool, service_id)
 
     if children:
-        await edit_or_replace(
-            callback,
-            f"<b>{service['name']}</b>\n\nОберіть варіант:",
-            reply_markup=subcategories_kb(children, category_type, from_booking),
-        )
+        description = f"\n📝 {service['description']}" if service['description'] else ""
+        text = f"<b>{service['name']}</b>{description}\n\nОберіть варіант:"
+        file_path = "/app" + service['photo_url'] if service['photo_url'] else None
+        if file_path and os.path.exists(file_path):
+            try:
+                await callback.message.delete()
+            except Exception:
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                except Exception:
+                    pass
+            try:
+                await callback.message.answer_photo(
+                    FSInputFile(file_path),
+                    caption=text,
+                    reply_markup=subcategories_kb(children, category_type, from_booking),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                await callback.message.answer(
+                    text,
+                    reply_markup=subcategories_kb(children, category_type, from_booking),
+                    parse_mode="HTML",
+                )
+        else:
+            await edit_or_replace(
+                callback,
+                text,
+                reply_markup=subcategories_kb(children, category_type, from_booking),
+            )
     else:
         if service['price_per_child']:
             price_line = f"\n💰 Ціна: {service['price_per_child']:.0f} грн/дитина"
