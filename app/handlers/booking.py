@@ -611,8 +611,13 @@ async def _notify_admin(bot: Bot, booking_id: int, data: dict, cart_items: list,
     if not _config.admin_chat_id:
         return
     children_count = data.get("children_count", 0)
+    has_offsite = any(item.get("category_type") == "offsite" for item in cart_items)
     lines = [
         f"📅 Нове бронювання #{booking_id}",
+    ]
+    if has_offsite:
+        lines.append("⚠️ Замовлення на виїзд!")
+    lines += [
         f"👤 {data['full_name']}",
         f"📱 {data['phone']}",
         f"👶 Дітей: {children_count}",
@@ -1141,8 +1146,13 @@ async def _notify_admin_change_request(
     booking_id = booking["id"]
     orig_date_str = data.get("orig_date", "")
     orig_children = data.get("orig_children", "?")
+    has_offsite = any(item.get("category_type") == "offsite" for item in cart_items)
     lines = [
         f"✏️ Запит на зміну бронювання #{booking_id}",
+    ]
+    if has_offsite:
+        lines.append("⚠️ Замовлення на виїзд!")
+    lines += [
         f"👤 {booking['full_name']}",
         f"📱 {booking['phone']}",
         f"📆 Дата: {_fmt_date(orig_date_str)} → {_fmt_date(proposed_date_str)}",
