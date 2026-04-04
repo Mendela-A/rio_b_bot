@@ -11,8 +11,13 @@ def build_notify_lines(data: dict, cart_items: list, entry_rate: float = 0) -> l
             return "—"
         return f"{iso[8:10]}.{iso[5:7]}.{iso[:4]}"
 
+    has_offsite = any(item.get("category_type") == "offsite" for item in cart_items)
     lines = [
         f"📅 Нове бронювання #{data['booking_id']}",
+    ]
+    if has_offsite:
+        lines.append("⚠️ Замовлення на виїзд!")
+    lines += [
         f"📆 Дата: {fmt_date(data['booking_date'])}",
     ]
     lines.append("\nВартість:")
@@ -47,8 +52,8 @@ def make_data(**kwargs):
     return {**base, **kwargs}
 
 
-def make_item(name="Торт", price=None, price_per_child=None, quantity=1):
-    return {"name": name, "price": price, "price_per_child": price_per_child, "quantity": quantity}
+def make_item(name="Торт", price=None, price_per_child=None, quantity=1, category_type="venue"):
+    return {"name": name, "price": price, "price_per_child": price_per_child, "quantity": quantity, "category_type": category_type}
 
 
 class TestNotifyAdminContent:
@@ -112,3 +117,31 @@ class TestNotifyAdminContent:
         text = "\n".join(lines)
         assert "500" in text
         assert "900" in text  # 200*2 + 500
+
+    def test_offsite_warning_shown(self):
+        """Виїзна послуга — ⚠️ з'являється після заголовку."""
+        item = make_item("Виїзд аніматора", price=800, category_type="offsite")
+        lines = build_notify_lines(make_data(), [item])
+        assert lines[1] == "⚠️ Замовлення на виїзд!"
+
+    def test_offsite_warning_not_shown_for_venue(self):
+        """Звичайна послуга — ⚠️ не з'являється."""
+        item = make_item("Кімната", price=1500, category_type="venue")
+        lines = build_notify_lines(make_data(), [item])
+        text = "\n".join(lines)
+        assert "⚠️" not in text
+
+    def test_offsite_warning_mixed_cart(self):
+        """Змішаний кошик з одним виїзним — попередження є."""
+        items = [
+            make_item("Кімната", price=1500, category_type="venue"),
+            make_item("Виїзд аніматора", price=800, category_type="offsite"),
+        ]
+        lines = build_notify_lines(make_data(), items)
+        assert "⚠️ Замовлення на виїзд!" in lines
+
+    def test_offsite_warning_empty_cart(self):
+        """Порожній кошик — попередження не з'являється."""
+        lines = build_notify_lines(make_data(), [])
+        text = "\n".join(lines)
+        assert "⚠️" not in text
