@@ -60,7 +60,7 @@ class AiUsageView(CustomView):
             daily_rows = await conn.fetch(
                 "SELECT DATE(created_at) AS day, SUM(input_tokens) AS inp, SUM(output_tokens) AS out, "
                 "SUM(cache_write_tokens) AS cache_write, SUM(cache_read_tokens) AS cache_read, "
-                "AVG(response_ms) AS avg_ms "
+                "AVG(response_ms) AS avg_ms, AVG(temperature) AS avg_temperature "
                 "FROM ai_usage_log GROUP BY day ORDER BY day DESC LIMIT 14"
             )
 
@@ -119,6 +119,7 @@ class AiUsageView(CustomView):
             cw = int(r["cache_write"] or 0)
             cr = int(r["cache_read"] or 0)
             avg_ms = int(r["avg_ms"]) if r["avg_ms"] is not None else None
+            avg_temp = round(float(r["avg_temperature"]), 2) if r["avg_temperature"] is not None else None
             daily.append({
                 "day": r["day"],
                 "inp": inp,
@@ -128,6 +129,7 @@ class AiUsageView(CustomView):
                 "total_tokens": inp + out,
                 "cost": _calc_cost(inp, out, prices),
                 "avg_ms": avg_ms,
+                "avg_temperature": avg_temp,
             })
 
         return _templates.TemplateResponse(

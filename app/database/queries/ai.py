@@ -58,13 +58,14 @@ async def log_ai_usage(
     cache_read_tokens: int = 0,
     response_ms: int | None = None,
     model: str | None = None,
+    temperature: float | None = None,
 ) -> None:
     await pool.execute(
         "INSERT INTO ai_usage_log "
-        "(telegram_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, response_ms, model) "
-        "VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        "(telegram_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, response_ms, model, temperature) "
+        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
         telegram_id, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-        response_ms, model,
+        response_ms, model, temperature,
     )
 
 

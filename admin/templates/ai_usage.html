@@ -119,6 +119,7 @@
               <th>Cache write</th>
               <th>Cache read</th>
               <th>Відповідь, мс</th>
+              <th>Темп.</th>
               <th>Вартість (USD)</th>
             </tr>
           </thead>
@@ -132,6 +133,7 @@
               <td class="text-muted">{{ "{:,}".format(row.cache_write) }}</td>
               <td class="text-success">{{ "{:,}".format(row.cache_read) }}</td>
               <td class="text-muted">{% if row.avg_ms is not none %}{{ row.avg_ms }}{% else %}—{% endif %}</td>
+              <td class="text-muted">{% if row.avg_temperature is not none %}{{ row.avg_temperature }}{% else %}—{% endif %}</td>
               <td>${{ "%.4f"|format(row.cost) }}</td>
             </tr>
             {% endfor %}

@@ -242,6 +242,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     messages.append({"role": "user", "content": user_text})
 
     try:
+        logger.info("AI call: model=%s temperature=%s max_tokens=%s user=%s", model, temperature, max_tokens, user_id)
         t0 = time.monotonic()
         response = await client.messages.create(
             model=model,
@@ -275,7 +276,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     await append_ai_history(pool, user_id, "assistant", reply_text)
     await trim_ai_history(pool, user_id, history_limit)
     await log_ai_usage(pool, user_id, input_tokens, output_tokens, cache_write, cache_read,
-                       response_ms=response_ms, model=model)
+                       response_ms=response_ms, model=model, temperature=temperature)
     await state.update_data(last_request_at=time.monotonic())
 
     await _update_or_send(bot, message.chat.id, state, reply_text)
