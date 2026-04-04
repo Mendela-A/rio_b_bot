@@ -220,7 +220,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     (
         history_limit_str, max_tokens_str, description,
         prompt_template, model, no_answer_phrase,
-        qa_pairs, services,
+        temperature_str, qa_pairs, services,
     ) = await asyncio.gather(
         get_setting(pool, "ai_history_limit", "20"),
         get_setting(pool, "ai_max_tokens", "1024"),
@@ -228,11 +228,13 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
         get_setting(pool, "ai_system_prompt", _DEFAULT_SYSTEM_PROMPT),
         get_setting(pool, "ai_model", "claude-haiku-4-5-20251001"),
         get_setting(pool, "ai_no_answer_phrase", _DEFAULT_NO_ANSWER_PHRASE),
+        get_setting(pool, "ai_temperature", "0.2"),
         get_ai_qa_pairs(pool),
         get_services_for_ai(pool),
     )
     history_limit = int(history_limit_str)
     max_tokens = int(max_tokens_str)
+    temperature = float(temperature_str)
     history = await get_ai_history(pool, user_id, limit=history_limit)
 
     system_prompt = _build_system_prompt(prompt_template, description, qa_pairs, no_answer_phrase, services)
@@ -244,6 +246,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
         response = await client.messages.create(
             model=model,
             max_tokens=max_tokens,
+            temperature=temperature,
             system=[{
                 "type": "text",
                 "text": system_prompt,

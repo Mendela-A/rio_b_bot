@@ -14,6 +14,7 @@ _AI_SETTINGS_KEYS = [
     "ai_max_tokens",
     "ai_history_limit",
     "ai_no_answer_phrase",
+    "ai_temperature",
 ]
 
 _AI_MODELS = [
@@ -100,5 +101,16 @@ class AiSettingsView(CustomView):
                     "ON CONFLICT (key) DO UPDATE SET value = $1",
                     str(val),
                 )
+
+            temperature_raw = (form.get("ai_temperature") or "").strip().replace(",", ".")
+            try:
+                temp_val = round(max(0.0, min(1.0, float(temperature_raw))), 2)
+                await conn.execute(
+                    "INSERT INTO settings (key, value) VALUES ('ai_temperature', $1) "
+                    "ON CONFLICT (key) DO UPDATE SET value = $1",
+                    str(temp_val),
+                )
+            except ValueError:
+                pass
 
         return RedirectResponse("/admin/ai-settings?saved=1", status_code=303)
