@@ -462,6 +462,7 @@ async def quick_start(callback: CallbackQuery, state: FSMContext, pool: asyncpg.
     await state.update_data(
         quick_service_id=service_id,
         quick_service_name=service_name,
+        quick_category_type=service["category_type"] if service else None,
         quick_price_per_child=bool(service and service["price_per_child"]),
     )
     from app.handlers._utils import edit_or_replace
@@ -531,6 +532,7 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     full_name = data["full_name"]
     service_id = data["quick_service_id"]
     service_name = data["quick_service_name"]
+    category_type = data.get("quick_category_type")
 
     if data.get("quick_price_per_child"):
         await state.update_data(quick_phone=phone)
@@ -552,7 +554,7 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
     await message.answer("Головне меню:", reply_markup=main_menu_kb())
 
-    await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name)
+    await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, category_type=category_type)
 
 
 @router.message(BookingStates.quick_waiting_children)
@@ -583,6 +585,7 @@ async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: as
     phone = data["quick_phone"]
     service_id = data["quick_service_id"]
     service_name = data["quick_service_name"]
+    category_type = data.get("quick_category_type")
 
     inquiry_id = await create_inquiry(
         pool, message.from_user.id, full_name, phone, service_id, service_name, children_count
@@ -596,7 +599,7 @@ async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: as
     asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
     await message.answer("Головне меню:", reply_markup=main_menu_kb())
 
-    await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, children_count)
+    await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, children_count, category_type=category_type)
 
 
 # --- Helpers ---
@@ -695,13 +698,16 @@ async def _notify_client_from_bot(bot: Bot, telegram_id: int, booking_id: int, b
 async def _notify_admin_inquiry(
     bot: Bot, inquiry_id: int, full_name: str, phone: str, service_name: str,
     children_count: int | None = None,
+    category_type: str | None = None,
 ) -> None:
     if not _config.admin_chat_id:
         return
+    offsite_line = "\n⚠️ Замовлення на виїзд!" if category_type == "offsite" else ""
     children_line = f"\n👶 Дітей: {children_count}" if children_count is not None else ""
     text = (
         f"⚡ Нова заявка #{inquiry_id}\n"
-        f"🎯 {service_name}\n"
+        f"🎯 {service_name}"
+        f"{offsite_line}\n"
         f"👤 {full_name}\n"
         f"📱 {phone}"
         f"{children_line}"
