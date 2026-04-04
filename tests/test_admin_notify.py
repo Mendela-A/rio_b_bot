@@ -145,3 +145,46 @@ class TestNotifyAdminContent:
         lines = build_notify_lines(make_data(), [])
         text = "\n".join(lines)
         assert "⚠️" not in text
+
+
+def build_inquiry_text(
+    inquiry_id: int, full_name: str, phone: str, service_name: str,
+    children_count: int | None = None, category_type: str | None = None,
+) -> str:
+    """Extracted logic from _notify_admin_inquiry for unit testing."""
+    offsite_line = "\n⚠️ Замовлення на виїзд!" if category_type == "offsite" else ""
+    children_line = f"\n👶 Дітей: {children_count}" if children_count is not None else ""
+    return (
+        f"⚡ Нова заявка #{inquiry_id}\n"
+        f"🎯 {service_name}"
+        f"{offsite_line}\n"
+        f"👤 {full_name}\n"
+        f"📱 {phone}"
+        f"{children_line}"
+    )
+
+
+class TestNotifyAdminInquiry:
+    def test_offsite_warning_shown(self):
+        text = build_inquiry_text(1, "Сара Конор", "+380", "Квест", category_type="offsite")
+        assert "⚠️ Замовлення на виїзд!" in text
+
+    def test_offsite_warning_position(self):
+        """⚠️ має бути одразу після назви послуги, перед ім'ям."""
+        text = build_inquiry_text(1, "Іван", "+380", "Квест", category_type="offsite")
+        lines = text.split("\n")
+        assert lines[1] == "🎯 Квест"
+        assert lines[2] == "⚠️ Замовлення на виїзд!"
+        assert lines[3] == "👤 Іван"
+
+    def test_no_warning_for_venue(self):
+        text = build_inquiry_text(1, "Іван", "+380", "Кімната", category_type="venue")
+        assert "⚠️" not in text
+
+    def test_no_warning_when_category_type_none(self):
+        text = build_inquiry_text(1, "Іван", "+380", "Кімната", category_type=None)
+        assert "⚠️" not in text
+
+    def test_children_count_shown(self):
+        text = build_inquiry_text(1, "Іван", "+380", "Квест", children_count=3, category_type="offsite")
+        assert "👶 Дітей: 3" in text
