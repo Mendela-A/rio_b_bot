@@ -1,5 +1,5 @@
 """Tests for _my_bookings_text and _booking_items_lines."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 
@@ -49,7 +49,11 @@ def _my_bookings_text(bookings: list, items_by_id: dict | None = None) -> str:
     lines = ["📋 <b>Ваші бронювання:</b>\n"]
     for b in bookings:
         date_str = b["booking_date"].strftime("%d.%m.%Y")
-        status = _STATUS_LABELS.get(b["status"], b["status"])
+        is_past = b["booking_date"] < date.today()
+        if is_past and b["status"] in ("new", "confirmed"):
+            status = "✔️ Відбулось"
+        else:
+            status = _STATUS_LABELS.get(b["status"], b["status"])
         lines.append(f"<b>#{b['id']}</b>  📅 {date_str}  {status}")
         lines.append(f"👶 Дітей: {b['children_count']}")
         adults = b.get("adults_count") or 0
@@ -235,3 +239,34 @@ class TestMyBookingsText:
         lines = text.split("\n")
         idx_11 = next(i for i, l in enumerate(lines) if "#11" in l)
         assert any("Послуги не обрані" in l for l in lines[idx_11:])
+
+
+class TestPastBookingLabel:
+    def test_past_confirmed_shows_vidbulos(self):
+        past = date.today() - timedelta(days=1)
+        text = _my_bookings_text([make_booking(booking_date=past, status="confirmed")])
+        assert "✔️ Відбулось" in text
+        assert "✅ Підтверджено" not in text
+
+    def test_past_new_shows_vidbulos(self):
+        past = date.today() - timedelta(days=1)
+        text = _my_bookings_text([make_booking(booking_date=past, status="new")])
+        assert "✔️ Відбулось" in text
+
+    def test_past_cancelled_keeps_cancelled_label(self):
+        past = date.today() - timedelta(days=1)
+        text = _my_bookings_text([make_booking(booking_date=past, status="cancelled")])
+        assert "⛔ Скасовано" in text
+        assert "✔️ Відбулось" not in text
+
+    def test_future_confirmed_keeps_confirmed_label(self):
+        future = date.today() + timedelta(days=1)
+        text = _my_bookings_text([make_booking(booking_date=future, status="confirmed")])
+        assert "✅ Підтверджено" in text
+        assert "✔️ Відбулось" not in text
+
+    def test_today_is_not_past(self):
+        today = date.today()
+        text = _my_bookings_text([make_booking(booking_date=today, status="confirmed")])
+        assert "✅ Підтверджено" in text
+        assert "✔️ Відбулось" not in text

@@ -748,18 +748,22 @@ def _cancel_reason_kb(booking_id: int) -> InlineKeyboardMarkup:
 
 def _my_bookings_kb(bookings: list) -> InlineKeyboardMarkup:
     rows = []
+    today = dt_date.today()
     for b in bookings:
-        if b["status"] != "cancelled":
-            row = [InlineKeyboardButton(
-                text=f"✏️ Змінити #{b['id']}",
-                callback_data=f"booking:change:{b['id']}",
-            )]
-            if b["status"] in ("new", "confirmed") and b["booking_date"] >= dt_date.today():
-                row.append(InlineKeyboardButton(
-                    text=f"❌ Скасувати #{b['id']}",
-                    callback_data=f"booking:user_cancel:{b['id']}",
-                ))
-            rows.append(row)
+        if b["status"] == "cancelled":
+            continue
+        if b["booking_date"] < today:
+            continue
+        row = [InlineKeyboardButton(
+            text=f"✏️ Змінити #{b['id']}",
+            callback_data=f"booking:change:{b['id']}",
+        )]
+        if b["status"] in ("new", "confirmed"):
+            row.append(InlineKeyboardButton(
+                text=f"❌ Скасувати #{b['id']}",
+                callback_data=f"booking:user_cancel:{b['id']}",
+            ))
+        rows.append(row)
     rows.append([InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -804,7 +808,11 @@ def _my_bookings_text(bookings: list, items_by_id: dict | None = None) -> str:
     lines = ["📋 <b>Ваші бронювання:</b>\n"]
     for b in bookings:
         date_str = b["booking_date"].strftime("%d.%m.%Y")
-        status = _STATUS_LABELS.get(b["status"], b["status"])
+        is_past = b["booking_date"] < dt_date.today()
+        if is_past and b["status"] in ("new", "confirmed"):
+            status = "✔️ Відбулось"
+        else:
+            status = _STATUS_LABELS.get(b["status"], b["status"])
         lines.append(f"<b>#{b['id']}</b>  📅 {date_str}  {status}")
         lines.append(f"👶 Дітей: {b['children_count']}")
         adults = b.get("adults_count") or 0
