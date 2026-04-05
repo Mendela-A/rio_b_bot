@@ -548,7 +548,7 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     await state.clear()
 
     msg = await message.answer(
-        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМи зателефонуємо вам найближчим часом.",
+        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМенеджер зв'яжеться з вами найближчим часом.",
         reply_markup=ReplyKeyboardRemove(),
     )
     asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
@@ -593,7 +593,7 @@ async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: as
     await state.clear()
 
     msg = await message.answer(
-        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМи зателефонуємо вам найближчим часом.",
+        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМенеджер зв'яжеться з вами найближчим часом.",
         reply_markup=ReplyKeyboardRemove(),
     )
     asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
