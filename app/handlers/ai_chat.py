@@ -21,6 +21,7 @@ from app.database.queries import (
     log_ai_usage,
     get_setting,
     get_ai_history_last_age_hours,
+    user_has_bookings,
 )
 from app import texts
 from app.keyboards.main_menu import main_menu_kb
@@ -175,9 +176,10 @@ async def start_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncp
 
 
 @router.callback_query(F.data == "ai:end")
-async def end_ai_chat(callback: CallbackQuery, state: FSMContext) -> None:
+async def end_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
     await state.clear()
-    await callback.message.edit_text(texts.get("menu.greeting"), reply_markup=main_menu_kb())
+    has_bkn = await user_has_bookings(pool, callback.from_user.id)
+    await callback.message.edit_text(texts.get("menu.greeting"), reply_markup=main_menu_kb(has_bookings=has_bkn))
     await callback.answer()
 
 

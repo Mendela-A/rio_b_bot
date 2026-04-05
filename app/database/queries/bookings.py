@@ -23,6 +23,13 @@ async def update_booking_status(pool: asyncpg.Pool, booking_id: int, status: str
     )
 
 
+async def user_has_bookings(pool: asyncpg.Pool, telegram_id: int) -> bool:
+    row = await pool.fetchrow(
+        "SELECT 1 FROM bookings WHERE telegram_id=$1 LIMIT 1", telegram_id
+    )
+    return row is not None
+
+
 async def get_user_bookings(
     pool: asyncpg.Pool, telegram_id: int, *, limit: int = 10
 ) -> list[asyncpg.Record]:

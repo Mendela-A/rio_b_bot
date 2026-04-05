@@ -158,3 +158,48 @@ class TestMainMenuKb:
             for btn in row:
                 if "(5)" in btn.text:
                     assert btn.callback_data == "cart:view"
+
+    def _my_bookings_btn(self, kb):
+        for row in kb.inline_keyboard:
+            for btn in row:
+                if btn.callback_data == "booking:my":
+                    return btn
+        return None
+
+    def test_my_bookings_hidden_by_default(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb()
+        assert self._my_bookings_btn(kb) is None
+
+    def test_my_bookings_hidden_when_false(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(has_bookings=False)
+        assert self._my_bookings_btn(kb) is None
+
+    def test_my_bookings_shown_when_true(self):
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(has_bookings=True)
+        assert self._my_bookings_btn(kb) is not None
+
+    def test_my_bookings_position(self):
+        """Кнопка 'Мої бронювання' стоїть після кошику, перед інфо."""
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(has_bookings=True)
+        callbacks = [row[0].callback_data for row in kb.inline_keyboard]
+        my_idx = callbacks.index("booking:my")
+        # cart row has two buttons — find the row index with cart:view
+        cart_row_idx = next(
+            i for i, row in enumerate(kb.inline_keyboard)
+            if any(b.callback_data == "cart:view" for b in row)
+        )
+        info_idx = callbacks.index("info:list")
+        assert cart_row_idx < my_idx < info_idx
+
+    def test_other_buttons_present_regardless(self):
+        from app.keyboards.main_menu import main_menu_kb
+        expected = {"services:venue", "services:offsite", "services:program",
+                    "booking:start", "cart:view", "info:list", "ai:start"}
+        for has_bkn in (False, True):
+            kb = main_menu_kb(has_bookings=has_bkn)
+            found = {btn.callback_data for row in kb.inline_keyboard for btn in row}
+            assert expected.issubset(found)

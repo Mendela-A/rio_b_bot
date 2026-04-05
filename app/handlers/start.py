@@ -10,7 +10,7 @@ from app.keyboards.main_menu import main_menu_kb
 from app.keyboards.admin_kb import admin_kb
 from app.handlers.admin import is_admin
 from app.handlers._utils import delete_after
-from app.database.queries import upsert_user, get_menu_message_id, set_menu_message_id, cart_get
+from app.database.queries import upsert_user, get_menu_message_id, set_menu_message_id, cart_get, user_has_bookings
 
 router = Router()
 
@@ -28,5 +28,6 @@ async def cmd_start(message: Message, bot: Bot, pool: asyncpg.Pool) -> None:
     if await is_admin(bot, message.from_user.id):
         await message.answer("👋 Вітаємо, адміне!", reply_markup=admin_kb())
     cart_items = await cart_get(pool, message.from_user.id)
-    sent = await message.answer(texts.get("menu.greeting"), reply_markup=main_menu_kb(len(cart_items)))
+    has_bkn = await user_has_bookings(pool, message.from_user.id)
+    sent = await message.answer(texts.get("menu.greeting"), reply_markup=main_menu_kb(len(cart_items), has_bkn))
     await set_menu_message_id(pool, message.from_user.id, sent.message_id)
