@@ -16,7 +16,8 @@ def build_inquiry_text(inquiry_id, service_name, full_name, phone, children_coun
         f"🎯 {service_name}\n"
         f"👤 {full_name}\n"
         f"📱 {phone}"
-        f"{children_line}"
+        f"{children_line}\n"
+        "📞 Менеджер зв'яжеться з вами найближчим часом"
     )
 
 

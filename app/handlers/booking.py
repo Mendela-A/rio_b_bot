@@ -710,7 +710,8 @@ async def _notify_admin_inquiry(
         f"{offsite_line}\n"
         f"👤 {full_name}\n"
         f"📱 {phone}"
-        f"{children_line}"
+        f"{children_line}\n"
+        "📞 Менеджер зв'яжеться з вами найближчим часом"
     )
     try:
         await bot.send_message(_config.admin_chat_id, text, parse_mode=None)

@@ -160,7 +160,8 @@ def build_inquiry_text(
         f"{offsite_line}\n"
         f"👤 {full_name}\n"
         f"📱 {phone}"
-        f"{children_line}"
+        f"{children_line}\n"
+        "📞 Менеджер зв'яжеться з вами найближчим часом"
     )
 
 
