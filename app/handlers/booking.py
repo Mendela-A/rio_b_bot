@@ -27,7 +27,7 @@ from app.keyboards.booking_kb import (
     add_service_categories_kb,
 )
 from app.keyboards.main_menu import main_menu_kb
-from app.handlers._utils import delete_after, fmt_date, services_lines, confirmation_text, cart_text, PHONE_RE
+from app.handlers._utils import delete_after, fmt_date, services_lines, confirmation_text, cart_text, PHONE_RE, inquiry_client_text
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -552,13 +552,11 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     inquiry_id = await create_inquiry(pool, message.from_user.id, full_name, phone, service_id, service_name)
     await state.clear()
 
-    msg = await message.answer(
-        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМенеджер зв'яжеться з вами найближчим часом.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
     has_bkn = await user_has_bookings(pool, message.from_user.id)
-    await message.answer("Головне меню:", reply_markup=main_menu_kb(has_bookings=has_bkn))
+    await message.answer(
+        inquiry_client_text(service_name, full_name, phone),
+        reply_markup=main_menu_kb(has_bookings=has_bkn),
+    )
 
     await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, category_type=category_type)
 
@@ -599,13 +597,11 @@ async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: as
     )
     await state.clear()
 
-    msg = await message.answer(
-        f"✅ <b>Заявку прийнято!</b>\n🎯 {service_name}\n\nМенеджер зв'яжеться з вами найближчим часом.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-    asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id, delay=30.0))
     has_bkn = await user_has_bookings(pool, message.from_user.id)
-    await message.answer("Головне меню:", reply_markup=main_menu_kb(has_bookings=has_bkn))
+    await message.answer(
+        inquiry_client_text(service_name, full_name, phone),
+        reply_markup=main_menu_kb(has_bookings=has_bkn),
+    )
 
     await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, children_count, category_type=category_type)
 

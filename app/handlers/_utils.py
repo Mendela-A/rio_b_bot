@@ -99,6 +99,16 @@ def confirmation_text(data: dict, cart_items: list, entry_rate: float = 0) -> st
     return "\n".join(lines)
 
 
+def inquiry_client_text(service_name: str, full_name: str, phone: str) -> str:
+    return (
+        f"✅ <b>Заявку прийнято!</b>\n"
+        f"🎯 {service_name}\n"
+        f"👤 {full_name}\n"
+        f"📱 {phone}\n\n"
+        f"Менеджер зв'яжеться з вами найближчим часом."
+    )
+
+
 async def edit_or_replace(
     callback: CallbackQuery,
     text: str,

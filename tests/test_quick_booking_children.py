@@ -72,3 +72,34 @@ class TestChildrenInputValidation:
     def test_negative_invalid(self):
         # "-1".isdigit() == False
         assert is_valid_children_input("-1") is False
+
+
+# ─── Client confirmation text ─────────────────────────────────────────────────
+
+class TestInquiryClientText:
+    from app.handlers._utils import inquiry_client_text
+
+    def test_contains_service_name(self):
+        from app.handlers._utils import inquiry_client_text
+        text = inquiry_client_text("Аніматор", "Іван", "+380991234567")
+        assert "Аніматор" in text
+
+    def test_contains_full_name(self):
+        from app.handlers._utils import inquiry_client_text
+        text = inquiry_client_text("Аніматор", "Іван Петренко", "+380991234567")
+        assert "Іван Петренко" in text
+
+    def test_contains_phone(self):
+        from app.handlers._utils import inquiry_client_text
+        text = inquiry_client_text("Аніматор", "Іван", "+380991234567")
+        assert "+380991234567" in text
+
+    def test_contains_success_marker(self):
+        from app.handlers._utils import inquiry_client_text
+        text = inquiry_client_text("Аніматор", "Іван", "+380991234567")
+        assert "✅" in text
+
+    def test_contains_manager_note(self):
+        from app.handlers._utils import inquiry_client_text
+        text = inquiry_client_text("Аніматор", "Іван", "+380991234567")
+        assert "Менеджер" in text
