@@ -170,7 +170,7 @@ async def start_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncp
 
     welcome = await get_setting(pool, "ai_welcome_message", "Привіт! Напишіть ваше запитання.")
     await state.set_state(AIChatStates.chatting)
-    await state.update_data(bot_msg_id=callback.message.message_id)
+    await state.update_data(last_bot_msg_id=callback.message.message_id)
     await callback.message.edit_text(welcome, reply_markup=_end_kb())
     await callback.answer()
 
@@ -178,8 +178,17 @@ async def start_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncp
 @router.callback_query(F.data == "ai:end")
 async def end_ai_chat(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
     await state.clear()
+    # Прибрати кнопку з останнього повідомлення чату
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    # Надіслати головне меню як нове повідомлення
     active_bkn = await count_active_bookings(pool, callback.from_user.id)
-    await callback.message.edit_text(texts.get("menu.greeting"), reply_markup=main_menu_kb(active_bookings=active_bkn))
+    await callback.message.answer(
+        texts.get("menu.greeting"),
+        reply_markup=main_menu_kb(active_bookings=active_bkn),
+    )
     await callback.answer()
 
 
@@ -197,7 +206,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
     now = time.monotonic()
     if now - last_request_at < AI_COOLDOWN_SECONDS:
         wait = int(AI_COOLDOWN_SECONDS - (now - last_request_at)) + 1
-        await _update_or_send(bot, message.chat.id, state,
+        await _send_new_reply(bot, message.chat.id, state,
                               f"⏳ Зачекайте {wait} сек. перед наступним запитанням.")
         return
 
@@ -205,14 +214,14 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
 
     ai_enabled = await get_setting(pool, "ai_enabled", "true")
     if ai_enabled.lower() != "true":
-        await _update_or_send(bot, message.chat.id, state,
+        await _send_new_reply(bot, message.chat.id, state,
                               "Асистент тимчасово недоступний. Спробуйте пізніше.")
         return
 
     client = _get_anthropic_client()
     if not client:
         logger.error("ANTHROPIC_API_KEY is not set")
-        await _update_or_send(bot, message.chat.id, state,
+        await _send_new_reply(bot, message.chat.id, state,
                               "Помилка конфігурації. Зверніться до адміністратора.")
         return
 
@@ -257,7 +266,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
         response_ms = int((time.monotonic() - t0) * 1000)
         if not response.content:
             logger.error("Anthropic API returned empty content")
-            await _update_or_send(bot, message.chat.id, state,
+            await _send_new_reply(bot, message.chat.id, state,
                                   "Виникла помилка. Спробуйте пізніше або зверніться до адміністратора.")
             return
         reply_text = _strip_markdown(response.content[0].text)
@@ -267,7 +276,7 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
         cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
     except Exception as e:
         logger.error("Anthropic API error: %s", e)
-        await _update_or_send(bot, message.chat.id, state,
+        await _send_new_reply(bot, message.chat.id, state,
                               "Виникла помилка. Спробуйте пізніше або зверніться до адміністратора.")
         return
 
@@ -278,28 +287,23 @@ async def handle_ai_message(message: Message, state: FSMContext, pool: asyncpg.P
                        response_ms=response_ms, model=model, temperature=temperature)
     await state.update_data(last_request_at=time.monotonic())
 
-    await _update_or_send(bot, message.chat.id, state, reply_text)
+    await _send_new_reply(bot, message.chat.id, state, reply_text)
 
 
-async def _update_or_send(bot: Bot, chat_id: int, state: FSMContext, text: str) -> None:
-    """Редагує існуюче повідомлення бота, якщо можливо — інакше надсилає нове.
+async def _send_new_reply(bot: Bot, chat_id: int, state: FSMContext, text: str) -> None:
+    """Надсилає нове повідомлення бота, прибираючи кнопку з попереднього.
 
     parse_mode=None: AI-відповідь — довільний текст, може містити <, >, &
     які зламають HTML-рендеринг (глобальний дефолт бота — ParseMode.HTML).
     """
     data = await state.get_data()
-    bot_msg_id = data.get("bot_msg_id")
-    if bot_msg_id:
+    last_id = data.get("last_bot_msg_id")
+    if last_id:
         try:
-            await bot.edit_message_text(
-                text, chat_id=chat_id, message_id=bot_msg_id,
-                reply_markup=_end_kb(), parse_mode=None,
+            await bot.edit_message_reply_markup(
+                chat_id=chat_id, message_id=last_id, reply_markup=None,
             )
-            return
         except Exception:
-            try:
-                await bot.delete_message(chat_id, bot_msg_id)
-            except Exception:
-                pass
+            pass
     msg = await bot.send_message(chat_id, text, reply_markup=_end_kb(), parse_mode=None)
-    await state.update_data(bot_msg_id=msg.message_id)
+    await state.update_data(last_bot_msg_id=msg.message_id)
