@@ -96,6 +96,7 @@ def confirmation_text(data: dict, cart_items: list, entry_rate: float = 0) -> st
         f"📆 Дата: {fmt_date(data['booking_date'])}",
     ]
     lines.extend(services_lines(cart_items, entry_rate, data.get("children_count", 0)))
+    lines.append("\n🎁 Бажаєте додати послуги до свята? 👇")
     return "\n".join(lines)
 
 

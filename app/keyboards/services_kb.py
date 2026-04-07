@@ -60,11 +60,12 @@ def service_detail_kb(category_type: str, service_id: int, from_booking: bool = 
                 InlineKeyboardButton(text="↩️ До підтвердження", callback_data="booking:resume_confirm"),
             ],
         ])
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚡ Замовити", callback_data=f"quick:start:{service_id}")],
-        [InlineKeyboardButton(text="➕ Додати до кошику", callback_data=add_cb)],
-        [
-            InlineKeyboardButton(text="◀️ Назад", callback_data=back_cb),
-            InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu"),
-        ],
+    buttons = []
+    if category_type == "offsite":
+        buttons.append([InlineKeyboardButton(text="⚡ Замовити", callback_data=f"quick:start:{service_id}")])
+    buttons.append([InlineKeyboardButton(text="➕ Додати до кошику", callback_data=add_cb)])
+    buttons.append([
+        InlineKeyboardButton(text="◀️ Назад", callback_data=back_cb),
+        InlineKeyboardButton(text="🏠 Головне меню", callback_data="main_menu"),
     ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

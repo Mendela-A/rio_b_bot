@@ -122,6 +122,20 @@ class TestConfirmBookingKb:
                 if "(1)" in btn.text:
                     assert btn.callback_data == "booking:view_cart"
 
+    def test_add_service_button_before_confirm(self):
+        """🎁 Додати послуги стоїть вище ✅ Підтвердити."""
+        kb = confirm_booking_kb(cart_items=None)
+        callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
+        add_idx = callbacks.index("booking:add_service")
+        confirm_idx = callbacks.index("booking:confirm")
+        assert add_idx < confirm_idx
+
+    def test_add_service_button_text(self):
+        """Кнопка має помітний текст із emoji."""
+        kb = confirm_booking_kb(cart_items=None)
+        texts = [btn.text for row in kb.inline_keyboard for btn in row]
+        assert any("🎁" in t for t in texts)
+
 
 class TestMainMenuKb:
     from app.keyboards.main_menu import main_menu_kb

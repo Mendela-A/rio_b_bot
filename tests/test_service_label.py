@@ -1,11 +1,11 @@
 """
 Тести для _service_label — відображення ціни у кнопках списку послуг.
+Тести для service_detail_kb — умовне відображення кнопки ⚡ Замовити.
 Без aiogram — тестуємо чисту логіку через dict замість asyncpg.Record.
 """
 import pytest
 
-# Імпортуємо напряму з модуля (aiogram не потрібен для _service_label)
-from app.keyboards.services_kb import _service_label
+from app.keyboards.services_kb import _service_label, service_detail_kb
 
 
 def svc(name, *, price=None, price_per_child=None):
@@ -49,3 +49,34 @@ class TestServiceLabel:
 
     def test_decimal_ppc_rounded(self):
         assert _service_label(svc("VR", price_per_child=149.5)) == "VR — 150 грн/дит."
+
+
+def _all_callbacks(kb):
+    return [btn.callback_data for row in kb.inline_keyboard for btn in row]
+
+
+def _all_texts(kb):
+    return [btn.text for row in kb.inline_keyboard for btn in row]
+
+
+class TestServiceDetailKb:
+    def test_offsite_has_quick_booking(self):
+        kb = service_detail_kb("offsite", 1)
+        assert any("quick:start:1" in cb for cb in _all_callbacks(kb))
+
+    def test_venue_no_quick_booking(self):
+        kb = service_detail_kb("venue", 2)
+        assert not any("quick:start" in cb for cb in _all_callbacks(kb))
+
+    def test_program_no_quick_booking(self):
+        kb = service_detail_kb("program", 3)
+        assert not any("quick:start" in cb for cb in _all_callbacks(kb))
+
+    def test_all_categories_have_add_to_cart(self):
+        for cat in ("offsite", "venue", "program"):
+            kb = service_detail_kb(cat, 1)
+            assert any("cart:add:1" in cb or "cart:add:" in cb for cb in _all_callbacks(kb))
+
+    def test_from_booking_never_has_quick_booking(self):
+        kb = service_detail_kb("offsite", 1, from_booking=True)
+        assert not any("quick:start" in cb for cb in _all_callbacks(kb))

@@ -88,3 +88,15 @@ class TestConfirmationText:
         text = confirmation_text(data, [])
         assert "Михайло" in text
         assert "None" not in text
+
+    def test_upsell_hint_present(self):
+        """Текст підтвердження містить підказку про додаткові послуги."""
+        text = confirmation_text(self._make_data(), [])
+        assert "🎁" in text
+
+    def test_upsell_hint_at_end(self):
+        """Підказка стоїть після блоку вартості."""
+        text = confirmation_text(self._make_data(), [])
+        cost_pos = text.find("Вартість")
+        hint_pos = text.find("🎁")
+        assert cost_pos < hint_pos
