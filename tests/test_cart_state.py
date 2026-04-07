@@ -214,6 +214,16 @@ class TestMainMenuKb:
         kb = main_menu_kb(active_bookings=0)  # всі cancelled → count_active_bookings повернув 0
         assert self._my_bookings_btn(kb) is None
 
+    def test_my_bookings_hidden_when_past_only(self):
+        """БІЗНЕС-ПРАВИЛО: минулі бронювання НЕ рахуються — кнопка прихована.
+
+        Регресійний тест: count_active_bookings фільтрує booking_date >= CURRENT_DATE,
+        тому підтверджене бронювання що вже відбулось не дає 1 на кнопці.
+        """
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(active_bookings=0)  # минуле confirmed → count_active_bookings повернув 0
+        assert self._my_bookings_btn(kb) is None
+
     def test_my_bookings_position(self):
         """Кнопка 'Мої бронювання' стоїть після кошику, перед інфо."""
         from app.keyboards.main_menu import main_menu_kb
