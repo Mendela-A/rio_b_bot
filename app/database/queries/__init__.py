@@ -29,6 +29,7 @@ from app.database.queries.cart import (
 )
 from app.database.queries.bookings import (
     user_has_bookings,
+    count_active_bookings,
     get_booking_by_id,
     update_booking_status,
     get_user_bookings,
@@ -64,7 +65,7 @@ __all__ = [
     "upsert_user", "get_all_active_user_ids", "get_menu_message_id", "set_menu_message_id",
     "get_setting", "get_entry_tariff", "get_blocked_dates", "get_blocked_weekdays", "create_inquiry",
     "cart_add", "cart_get", "cart_remove", "cart_clear",
-    "user_has_bookings",
+    "user_has_bookings", "count_active_bookings",
     "get_booking_by_id", "update_booking_status", "get_user_bookings", "get_booking_items_for_bookings",
     "create_booking", "create_booking_items", "get_booking_items",
     "create_change_request", "create_change_items", "get_change_request", "get_change_items",

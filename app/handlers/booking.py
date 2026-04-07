@@ -16,7 +16,7 @@ from app import texts
 from app.config import load_config
 from app.database.queries import (
     cart_get, cart_add, cart_clear, create_booking, create_booking_items,
-    get_user_bookings, get_booking_items_for_bookings, user_has_bookings,
+    get_user_bookings, get_booking_items_for_bookings, count_active_bookings,
     get_service_by_id, create_inquiry, get_setting, get_blocked_dates, get_blocked_weekdays,
     get_booking_by_id, update_booking_status, get_booking_items,
     create_change_request, create_change_items, get_change_request, get_pending_change_for_booking,
@@ -123,8 +123,8 @@ async def booking_phone(message: Message, state: FSMContext, bot: Bot, pool: asy
         await state.clear()
         msg = await message.answer("Бронювання скасовано.", reply_markup=ReplyKeyboardRemove())
         asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id))
-        has_bkn = await user_has_bookings(pool, message.from_user.id)
-        await message.answer("Головне меню:", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, message.from_user.id)
+        await message.answer("Головне меню:", reply_markup=main_menu_kb(active_bookings=active_bkn))
         return
 
     # Contact shared via button
@@ -371,8 +371,8 @@ async def booking_view_cart(callback: CallbackQuery, pool: asyncpg.Pool) -> None
 async def booking_resume_confirm(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
     data = await state.get_data()
     if not data.get("full_name"):
-        has_bkn = await user_has_bookings(pool, callback.from_user.id)
-        await callback.message.edit_text("Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, callback.from_user.id)
+        await callback.message.edit_text("Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb(active_bookings=active_bkn))
         await state.clear()
         await callback.answer()
         return
@@ -390,8 +390,8 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
 
     data = await state.get_data()
     if not data.get("full_name"):
-        has_bkn = await user_has_bookings(pool, callback.from_user.id)
-        await callback.message.edit_text("Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, callback.from_user.id)
+        await callback.message.edit_text("Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb(active_bookings=active_bkn))
         await state.clear()
         return
 
@@ -441,7 +441,7 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
 
     await callback.message.edit_text(
         texts.get("booking.success", id=booking_id),
-        reply_markup=main_menu_kb(has_bookings=True),
+        reply_markup=main_menu_kb(active_bookings=1),
     )
 
 
@@ -450,8 +450,8 @@ async def booking_confirm(callback: CallbackQuery, state: FSMContext, pool: asyn
 @router.callback_query(F.data == "booking:cancel")
 async def booking_cancel(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
     await state.clear()
-    has_bkn = await user_has_bookings(pool, callback.from_user.id)
-    await callback.message.edit_text(texts.get("booking.cancelled"), reply_markup=main_menu_kb(has_bookings=has_bkn))
+    active_bkn = await count_active_bookings(pool, callback.from_user.id)
+    await callback.message.edit_text(texts.get("booking.cancelled"), reply_markup=main_menu_kb(active_bookings=active_bkn))
     await callback.answer()
 
 
@@ -509,8 +509,8 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
         await state.clear()
         msg = await message.answer("Скасовано.", reply_markup=ReplyKeyboardRemove())
         asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id))
-        has_bkn = await user_has_bookings(pool, message.from_user.id)
-        await message.answer("Головне меню:", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, message.from_user.id)
+        await message.answer("Головне меню:", reply_markup=main_menu_kb(active_bookings=active_bkn))
         return
 
     if message.contact:
@@ -552,10 +552,10 @@ async def quick_phone(message: Message, state: FSMContext, bot: Bot, pool: async
     inquiry_id = await create_inquiry(pool, message.from_user.id, full_name, phone, service_id, service_name)
     await state.clear()
 
-    has_bkn = await user_has_bookings(pool, message.from_user.id)
+    active_bkn = await count_active_bookings(pool, message.from_user.id)
     await message.answer(
         inquiry_client_text(service_name, full_name, phone),
-        reply_markup=main_menu_kb(has_bookings=has_bkn),
+        reply_markup=main_menu_kb(active_bookings=active_bkn),
     )
 
     await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, category_type=category_type)
@@ -571,8 +571,8 @@ async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: as
         await state.clear()
         msg = await message.answer("Скасовано.", reply_markup=ReplyKeyboardRemove())
         asyncio.create_task(delete_after(bot, message.chat.id, msg.message_id))
-        has_bkn = await user_has_bookings(pool, message.from_user.id)
-        await message.answer("Головне меню:", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, message.from_user.id)
+        await message.answer("Головне меню:", reply_markup=main_menu_kb(active_bookings=active_bkn))
         return
 
     text = (message.text or "").strip()
@@ -597,10 +597,10 @@ async def quick_children(message: Message, state: FSMContext, bot: Bot, pool: as
     )
     await state.clear()
 
-    has_bkn = await user_has_bookings(pool, message.from_user.id)
+    active_bkn = await count_active_bookings(pool, message.from_user.id)
     await message.answer(
         inquiry_client_text(service_name, full_name, phone),
-        reply_markup=main_menu_kb(has_bookings=has_bkn),
+        reply_markup=main_menu_kb(active_bookings=active_bkn),
     )
 
     await _notify_admin_inquiry(bot, inquiry_id, full_name, phone, service_name, children_count, category_type=category_type)
@@ -1098,8 +1098,8 @@ def _change_confirm_text(data: dict, proposed_children: int, cart_items: list) -
 async def change_resume_confirm(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
     data = await state.get_data()
     if not data.get("booking_id"):
-        has_bkn = await user_has_bookings(pool, callback.from_user.id)
-        await callback.message.edit_text("Сесія застаріла. Почніть знову.", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, callback.from_user.id)
+        await callback.message.edit_text("Сесія застаріла. Почніть знову.", reply_markup=main_menu_kb(active_bookings=active_bkn))
         await state.clear()
         await callback.answer()
         return
@@ -1117,8 +1117,8 @@ async def change_resume_confirm(callback: CallbackQuery, state: FSMContext, pool
 async def change_cancel(callback: CallbackQuery, state: FSMContext, pool: asyncpg.Pool) -> None:
     await cart_clear(pool, callback.from_user.id)
     await state.clear()
-    has_bkn = await user_has_bookings(pool, callback.from_user.id)
-    await callback.message.edit_text("Зміну скасовано.", reply_markup=main_menu_kb(has_bookings=has_bkn))
+    active_bkn = await count_active_bookings(pool, callback.from_user.id)
+    await callback.message.edit_text("Зміну скасовано.", reply_markup=main_menu_kb(active_bookings=active_bkn))
     await callback.answer()
 
 
@@ -1131,8 +1131,8 @@ async def change_confirm(callback: CallbackQuery, state: FSMContext, pool: async
     proposed_children = data.get("proposed_children")
 
     if not booking_id or not proposed_date_str or not proposed_children:
-        has_bkn = await user_has_bookings(pool, callback.from_user.id)
-        await callback.message.edit_text("Сесія застаріла. Почніть знову.", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, callback.from_user.id)
+        await callback.message.edit_text("Сесія застаріла. Почніть знову.", reply_markup=main_menu_kb(active_bookings=active_bkn))
         await state.clear()
         return
 
@@ -1150,7 +1150,7 @@ async def change_confirm(callback: CallbackQuery, state: FSMContext, pool: async
 
     await callback.message.edit_text(
         f"✅ Запит на зміну бронювання #{booking_id} надіслано!\nОчікуйте підтвердження адміністратора.",
-        reply_markup=main_menu_kb(has_bookings=True),
+        reply_markup=main_menu_kb(active_bookings=1),
     )
 
 

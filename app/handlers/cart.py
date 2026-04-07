@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKe
 from app import texts
 from app.database.queries import (
     cart_add, cart_get, cart_remove, get_services_by_type,
-    get_entry_tariff, get_service_by_id, user_has_bookings,
+    get_entry_tariff, get_service_by_id, count_active_bookings,
 )
 from app.keyboards.booking_kb import cart_kb, confirm_booking_kb
 from app.keyboards.main_menu import main_menu_kb
@@ -84,8 +84,8 @@ async def cart_add_booking_handler(callback: CallbackQuery, pool: asyncpg.Pool, 
 
     data = await state.get_data()
     if not data.get("full_name"):
-        has_bkn = await user_has_bookings(pool, callback.from_user.id)
-        await edit_or_replace(callback, "Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb(has_bookings=has_bkn))
+        active_bkn = await count_active_bookings(pool, callback.from_user.id)
+        await edit_or_replace(callback, "Сесія застаріла. Почніть бронювання знову.", reply_markup=main_menu_kb(active_bookings=active_bkn))
         await state.clear()
         return
     cart_items = await cart_get(pool, callback.from_user.id)

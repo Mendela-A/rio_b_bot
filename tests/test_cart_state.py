@@ -185,23 +185,41 @@ class TestMainMenuKb:
         kb = main_menu_kb()
         assert self._my_bookings_btn(kb) is None
 
-    def test_my_bookings_hidden_when_false(self):
+    def test_my_bookings_hidden_when_zero_active(self):
+        """БІЗНЕС-ПРАВИЛО: 0 активних бронювань → кнопка прихована."""
         from app.keyboards.main_menu import main_menu_kb
-        kb = main_menu_kb(has_bookings=False)
+        kb = main_menu_kb(active_bookings=0)
         assert self._my_bookings_btn(kb) is None
 
-    def test_my_bookings_shown_when_true(self):
+    def test_my_bookings_shown_when_active(self):
+        """БІЗНЕС-ПРАВИЛО: є активні бронювання → кнопка видима."""
         from app.keyboards.main_menu import main_menu_kb
-        kb = main_menu_kb(has_bookings=True)
+        kb = main_menu_kb(active_bookings=2)
         assert self._my_bookings_btn(kb) is not None
+
+    def test_my_bookings_badge_shows_count(self):
+        """БІЗНЕС-ПРАВИЛО: лічильник активних бронювань відображається на кнопці."""
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(active_bookings=3)
+        btn = self._my_bookings_btn(kb)
+        assert "(3)" in btn.text
+
+    def test_my_bookings_hidden_when_cancelled_only(self):
+        """БІЗНЕС-ПРАВИЛО: скасовані бронювання НЕ рахуються — кнопка прихована.
+
+        Це регресійний тест для бага де user_has_bookings не фільтрував статус:
+        навіть якщо всі бронювання скасовані, active_bookings=0 → кнопка зникає.
+        """
+        from app.keyboards.main_menu import main_menu_kb
+        kb = main_menu_kb(active_bookings=0)  # всі cancelled → count_active_bookings повернув 0
+        assert self._my_bookings_btn(kb) is None
 
     def test_my_bookings_position(self):
         """Кнопка 'Мої бронювання' стоїть після кошику, перед інфо."""
         from app.keyboards.main_menu import main_menu_kb
-        kb = main_menu_kb(has_bookings=True)
+        kb = main_menu_kb(active_bookings=1)
         callbacks = [row[0].callback_data for row in kb.inline_keyboard]
         my_idx = callbacks.index("booking:my")
-        # cart row has two buttons — find the row index with cart:view
         cart_row_idx = next(
             i for i, row in enumerate(kb.inline_keyboard)
             if any(b.callback_data == "cart:view" for b in row)
@@ -213,7 +231,7 @@ class TestMainMenuKb:
         from app.keyboards.main_menu import main_menu_kb
         expected = {"services:venue", "services:offsite", "services:program",
                     "booking:start", "cart:view", "info:list", "ai:start"}
-        for has_bkn in (False, True):
-            kb = main_menu_kb(has_bookings=has_bkn)
+        for active in (0, 2):
+            kb = main_menu_kb(active_bookings=active)
             found = {btn.callback_data for row in kb.inline_keyboard for btn in row}
             assert expected.issubset(found)

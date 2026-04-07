@@ -30,6 +30,22 @@ async def user_has_bookings(pool: asyncpg.Pool, telegram_id: int) -> bool:
     return row is not None
 
 
+# Активні статуси — бронювання які ще актуальні для клієнта
+ACTIVE_BOOKING_STATUSES = ("new", "confirmed")
+
+
+async def count_active_bookings(pool: asyncpg.Pool, telegram_id: int) -> int:
+    """Повертає кількість активних бронювань (new + confirmed).
+    Скасовані не враховуються — кнопка «Мої бронювання» прихована при 0.
+    """
+    row = await pool.fetchrow(
+        "SELECT COUNT(*) AS cnt FROM bookings WHERE telegram_id=$1 AND status = ANY($2::text[])",
+        telegram_id,
+        list(ACTIVE_BOOKING_STATUSES),
+    )
+    return int(row["cnt"])
+
+
 async def get_user_bookings(
     pool: asyncpg.Pool, telegram_id: int, *, limit: int = 10
 ) -> list[asyncpg.Record]:
